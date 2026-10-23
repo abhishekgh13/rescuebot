@@ -29,12 +29,17 @@ Internet is needed to load the map.
    sets their location, and can add safe zones. Pre-loaded safe zones are
    relief centres in Coimbatore, Chennai, Madurai, Trichy, Salem,
    Thanjavur, Tirunelveli, Vellore, Erode and Kanyakumari.
-2. **Decide** — RescueBot checks the nearest safe zones, gets the real
-   road route (OSRM) for each, and checks if the road passes through the
-   disaster circle. If it does, it tries a **detour route around the
-   disaster**. The first fully safe route is selected.
-3. **Act** — The route is drawn on the real map and a rule-based system
-   recommends transport:
+2. **Decide** — The disaster is modelled in intensity tiers: a
+   **high-intensity core** (routes must avoid it) and a **low-intensity
+   outer area**, where an **internal safe shelter is automatically
+   placed inside the disaster**. RescueBot then computes **two routes**:
+   - **Route A (teal)** — to the internal shelter inside the
+     low-intensity area: immediate refuge, usually shorter
+   - **Route B (blue)** — to the nearest **external** safe zone
+     (28 relief centres across Tamil Nadu), avoiding the core, with a
+     detour around the core if the direct road is blocked
+3. **Act** — Both routes are drawn on the real map and a rule-based system
+   recommends transport for each route:
    - Short distance (≤ 800 m) → **Walk**
    - Flood / Cyclone → **Car** (bike can stall in water)
    - Earthquake / Landslide → **Bike** (passes narrow debris gaps)

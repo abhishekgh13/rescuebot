@@ -37,8 +37,9 @@ main { display: grid; grid-template-columns: 1fr 350px; gap: 18px; padding: 18px
 .legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; font-size: 12px; color: var(--muted); font-weight: 600; }
 .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
 .dot-person { background: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.3); }
-.dot-disaster { background: var(--red); } .dot-danger { background: var(--amber); } .dot-safe { background: var(--green); }
-.dot-path { background: var(--blue); border-radius: 2px; }
+.dot-core { background: #991b1b; } .dot-low { background: #fb923c; } .dot-danger { background: var(--amber); } .dot-safe { background: var(--green); }
+.dot-shelter { background: #0d9488; box-shadow: 0 0 0 3px rgba(13,148,136,.3); }
+.dot-route-a { background: #0d9488; border-radius: 2px; } .dot-route-b { background: var(--blue); border-radius: 2px; }
 .note { font-size: 12px; color: #5b6b84; }
 
 /* ===== Radar-style map markers (no emojis) =====
@@ -63,6 +64,8 @@ main { display: grid; grid-template-columns: 1fr 350px; gap: 18px; padding: 18px
 .mkr-safe { color: var(--green); }
 .mkr-safe .mkr-core { background: var(--green); width: 26px; height: 26px; font-size: 12px; }
 .mkr-safe .radar-ring { animation-duration: 3.2s; }
+.mkr-shelter { color: #0d9488; }
+.mkr-shelter .mkr-core { background: #0d9488; border-radius: 8px; width: 34px; height: 34px; font-size: 16px; }
 
 /* ---------- Right panel ---------- */
 .panel { display: flex; flex-direction: column; gap: 14px; }
@@ -84,6 +87,15 @@ main { display: grid; grid-template-columns: 1fr 350px; gap: 18px; padding: 18px
 .result p { font-size: 14px; margin-bottom: 6px; }
 .result-note { color: var(--muted); font-size: 13px; }
 .hidden { display: none; }
+
+.route-card { background: var(--panel-2); border: 1px solid var(--border); border-left: 4px solid #0d9488; border-radius: 10px; padding: 13px; margin-top: 12px; }
+.route-card.route-b { border-left-color: var(--blue); }
+.route-card-head { font-weight: 700; font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.route-tag { font-size: 10px; letter-spacing: 1px; padding: 3px 7px; border-radius: 5px; color: #fff; }
+.tag-a { background: #0d9488; } .tag-b { background: var(--blue); }
+.transport-mini { display: flex; align-items: center; gap: 12px; margin: 9px 0; }
+.transport-mini .t-icon { font-size: 28px; color: var(--accent); width: 40px; text-align: center; }
+.transport-mini .times { color: var(--accent); font-size: 12px; font-weight: 600; }
 
 .transport-box { text-align: center; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-top: 12px; }
 .transport-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 700; }

@@ -46,10 +46,13 @@
 
       <div class="legend">
         <span><i class="dot dot-person"></i> Your Location</span>
-        <span><i class="dot dot-disaster"></i> Disaster Zone</span>
+        <span><i class="dot dot-core"></i> Disaster Core (High Intensity)</span>
+        <span><i class="dot dot-low"></i> Low Intensity Area</span>
         <span><i class="dot dot-danger"></i> Danger Perimeter</span>
-        <span><i class="dot dot-safe"></i> Safe Zone</span>
-        <span><i class="dot dot-path"></i> Evacuation Route</span>
+        <span><i class="dot dot-shelter"></i> Internal Shelter (inside disaster, low intensity)</span>
+        <span><i class="dot dot-safe"></i> Safe Zone (28 across Tamil Nadu)</span>
+        <span><i class="dot dot-route-a"></i> Route A — to Internal Shelter</span>
+        <span><i class="dot dot-route-b"></i> Route B — to External Safe Zone</span>
       </div>
 
       <div class="preset-row">
@@ -112,16 +115,30 @@
       <p id="status" class="status"></p>
 
       <div id="result" class="result hidden">
-        <h2><i class="fa-solid fa-circle-check"></i> Evacuation Plan</h2>
-        <p id="resultSafeZone"></p>
-        <p id="resultDistance"></p>
-        <p id="resultNote" class="result-note"></p>
-        <div class="transport-box">
-          <div class="transport-title">Recommended Transport</div>
-          <div id="transportIcon" class="transport-icon"><i class="fa-solid fa-car"></i></div>
-          <div id="transportName" class="transport-name">Car</div>
-          <p id="transportReason"></p>
-          <p id="transportTimes" class="times"></p>
+        <h2><i class="fa-solid fa-circle-check"></i> Evacuation Plan — 2 Routes</h2>
+
+        <div class="route-card route-a">
+          <div class="route-card-head"><span class="route-tag tag-a">ROUTE A</span> Inside — Internal Shelter</div>
+          <p id="resA_dest"></p>
+          <p id="resA_dist"></p>
+          <p id="resA_note" class="result-note"></p>
+          <div class="transport-mini">
+            <span id="resA_icon" class="t-icon"><i class="fa-solid fa-car"></i></span>
+            <span><b id="resA_transport"></b><br /><span id="resA_times" class="times"></span></span>
+          </div>
+          <p id="resA_reason" class="result-note"></p>
+        </div>
+
+        <div class="route-card route-b">
+          <div class="route-card-head"><span class="route-tag tag-b">ROUTE B</span> Outside — External Safe Zone</div>
+          <p id="resB_dest"></p>
+          <p id="resB_dist"></p>
+          <p id="resB_note" class="result-note"></p>
+          <div class="transport-mini">
+            <span id="resB_icon" class="t-icon"><i class="fa-solid fa-car"></i></span>
+            <span><b id="resB_transport"></b><br /><span id="resB_times" class="times"></span></span>
+          </div>
+          <p id="resB_reason" class="result-note"></p>
         </div>
       </div>
 
@@ -133,9 +150,9 @@
       <div class="panel-section how-it-works">
         <h2><span class="step">i</span> System Workflow</h2>
         <ol>
-          <li><b>Perceive</b> — An incident is registered by clicking the real map.</li>
-          <li><b>Decide</b> — Safe zones are evaluated and a real-road route that avoids the disaster perimeter is selected. If the direct road is blocked, a detour is computed.</li>
-          <li><b>Act</b> — The evacuation route is rendered on the map with a transport recommendation.</li>
+          <li><b>Perceive</b> — An incident is registered by clicking the real map. A disaster has a high-intensity core and a low-intensity outer area, where an internal shelter is automatically placed.</li>
+          <li><b>Decide</b> — Two routes are computed: <b>Route A</b> to the internal shelter inside the low-intensity area, and <b>Route B</b> to the nearest external safe zone, avoiding the disaster core (with a detour if the direct road is blocked).</li>
+          <li><b>Act</b> — Both routes are rendered on the map, each with its own transport recommendation.</li>
         </ol>
       </div>
     </aside>
