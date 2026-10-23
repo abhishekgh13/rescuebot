@@ -3,48 +3,55 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RescueBot — Disaster Rescue Route Finder</title>
+  <title>RescueBot — Disaster Rescue Route Finder | Tamil Nadu Real Map</title>
+
+  <!-- Leaflet (real map library, like Google Maps - free, no API key needed) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
     <div>
       <h1>🚨 RescueBot</h1>
-      <p class="tagline">Intelligent Robotics Project — Click the map to create a disaster, RescueBot finds your safest route out.</p>
+      <p class="tagline">Real Map of Tamil Nadu, India — Click the map to create a disaster, RescueBot finds the real road route to the nearest safe zone.</p>
     </div>
-    <div class="badge">Website Only &bull; No IoT &bull; Runs on Laptop</div>
+    <div class="badge">Website Only &bull; No IoT &bull; Real Roads</div>
   </header>
 
   <main>
-    <!-- ============ LEFT : MAP ============ -->
+    <!-- ============ LEFT : REAL MAP ============ -->
     <section class="map-section">
       <div class="map-toolbar">
         <span class="toolbar-label">Click mode:</span>
         <button class="mode-btn active" data-mode="disaster">🌋 Create Disaster</button>
         <button class="mode-btn" data-mode="person">📍 My Location</button>
         <button class="mode-btn" data-mode="safezone">🟢 Add Safe Zone</button>
-        <button class="mode-btn" data-mode="block">🚧 Block Road</button>
-        <button class="mode-btn" data-mode="erase">🧹 Erase</button>
       </div>
 
-      <div id="map" class="map-grid" aria-label="City map grid"></div>
+      <div class="search-row">
+        <input id="searchInput" type="text" placeholder="Search a place in Tamil Nadu — e.g. Madurai, Salem, Ooty..." />
+        <button id="searchBtn">🔍 Search</button>
+      </div>
+
+      <!-- The real map appears inside this box -->
+      <div id="map"></div>
 
       <div class="legend">
-        <span><i class="sw person"></i> You / RescueBot</span>
+        <span>🤖 You / RescueBot</span>
         <span><i class="sw disaster"></i> Disaster zone</span>
-        <span><i class="sw danger"></i> Danger ring (avoid)</span>
-        <span><i class="sw safe"></i> Safe zone</span>
-        <span><i class="sw blocked"></i> Blocked road</span>
-        <span><i class="sw path"></i> Escape route</span>
+        <span><i class="sw danger"></i> Danger area</span>
+        <span>🟢 Safe zone</span>
+        <span><i class="sw path"></i> Escape route (real roads)</span>
       </div>
 
       <div class="preset-row">
         <span class="toolbar-label">Quick scenarios:</span>
-        <button class="preset-btn" data-preset="flood">🌊 Flood</button>
-        <button class="preset-btn" data-preset="fire">🔥 Fire</button>
-        <button class="preset-btn" data-preset="earthquake">🏚️ Earthquake</button>
-        <button id="clearBtn" class="preset-btn danger-btn">Reset Map</button>
+        <button class="preset-btn" data-preset="chennai-flood">🌊 Flood in Chennai</button>
+        <button class="preset-btn" data-preset="nilgiris-landslide">⛰️ Landslide in Nilgiris</button>
+        <button class="preset-btn" data-preset="madurai-fire">🔥 Fire near Madurai</button>
+        <button id="clearBtn" class="preset-btn danger-btn">Clear Disasters</button>
       </div>
+      <p class="note">Map: © OpenStreetMap contributors (same real roads / places as Google Maps, but free and no API key needed). Road routes: OSRM. Needs internet to load the map.</p>
     </section>
 
     <!-- ============ RIGHT : CONTROLS + RESULT ============ -->
@@ -57,14 +64,15 @@
           <option value="fire">🔥 Fire</option>
           <option value="earthquake">🏚️ Earthquake</option>
           <option value="landslide">⛰️ Landslide</option>
+          <option value="cyclone">🌀 Cyclone</option>
         </select>
       </label>
       <label>
-        Disaster size
+        Disaster size (radius on map)
         <select id="disasterSize">
-          <option value="1">Small (radius 1)</option>
-          <option value="2" selected>Medium (radius 2)</option>
-          <option value="3">Large (radius 3)</option>
+          <option value="5">Small — 5 km</option>
+          <option value="10" selected>Medium — 10 km</option>
+          <option value="20">Large — 20 km</option>
         </select>
       </label>
 
@@ -89,11 +97,13 @@
       </label>
 
       <button id="findRouteBtn" class="find-btn">🤖 Find Safe Route</button>
+      <p id="status" class="status"></p>
 
       <div id="result" class="result hidden">
         <h2>✅ RescueBot Result</h2>
         <p id="resultSafeZone"></p>
         <p id="resultDistance"></p>
+        <p id="resultNote"></p>
         <div class="transport-box">
           <div class="transport-title">Recommended transport</div>
           <div id="transportIcon" class="transport-icon">🚗</div>
@@ -101,27 +111,27 @@
           <p id="transportReason"></p>
           <p id="transportTimes" class="times"></p>
         </div>
-        <h3>Turn-by-turn directions</h3>
-        <ol id="directions" class="directions"></ol>
       </div>
 
       <div id="noRoute" class="result error hidden">
-        <h2>⚠️ No safe route found</h2>
-        <p>All paths to a safe zone are blocked by the disaster. Try a smaller disaster, erase some blocked cells, or add a closer safe zone.</p>
+        <h2>⚠️ No route found</h2>
+        <p>Could not find a road route to any safe zone. Check your internet (the map routing needs it), move your location, or clear the disaster.</p>
       </div>
 
       <div class="how-it-works">
         <h2>How RescueBot works</h2>
         <ol>
-          <li><b>Perceive</b> — You mark the disaster on the map by clicking.</li>
-          <li><b>Decide</b> — RescueBot runs the A* path-finding algorithm, avoiding disaster + danger cells.</li>
-          <li><b>Act</b> — It draws the safest route to the nearest safe zone and recommends walk / bike / car.</li>
+          <li><b>Perceive</b> — You click the real map of Tamil Nadu to create the disaster.</li>
+          <li><b>Decide</b> — RescueBot checks the nearest safe zones and picks a real road route that avoids the disaster area (it goes around it if the direct road passes through).</li>
+          <li><b>Act</b> — The route is drawn on the map and walk / bike / car is recommended.</li>
         </ol>
       </div>
     </aside>
   </main>
 
-  <footer>RescueBot &bull; Intelligent Robotics (24AI2003) &bull; A* Path Finding + Rule-Based Transport Recommendation</footer>
+  <footer>RescueBot &bull; Intelligent Robotics (24AI2003) &bull; Real Map: Leaflet + OpenStreetMap &bull; Real Road Routing: OSRM</footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

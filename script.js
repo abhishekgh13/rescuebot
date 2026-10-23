@@ -1,328 +1,280 @@
 /* =========================================================
-   RescueBot — Disaster Rescue Route Finder
+   RescueBot — Disaster Rescue Route Finder (REAL MAP version)
    Intelligent Robotics Project (Website only, no IoT)
 
-   Idea:
-   1. PERCEIVE  - User clicks the map to create a disaster scenario
-   2. DECIDE    - A* algorithm finds the safest route to a safe zone
-   3. ACT       - Route is drawn + animated, and a transport
-                  (Walk / Bike / Car) is recommended by simple rules
+   Real map  : Leaflet + OpenStreetMap  (real roads/places of
+               Tamil Nadu, India — works like Google Maps,
+               free, no API key needed)
+   Real route: OSRM public routing service (real road paths)
+
+   1. PERCEIVE - User clicks the real map to create a disaster
+   2. DECIDE   - RescueBot finds the nearest safe zone whose
+                 REAL road route avoids the disaster area.
+                 If the direct road passes through the disaster,
+                 it tries a detour point around the disaster.
+   3. ACT      - Route is drawn on the real map + a transport
+                 (Walk / Bike / Car) is recommended by rules.
    ========================================================= */
 
-// ---------- Map settings ----------
-const COLS = 24;              // map width  (cells)
-const ROWS = 16;              // map height (cells)
-const CELL_METERS = 120;      // 1 cell = 120 metres in real life
+// ---------- 1. Create the real map, centred on Tamil Nadu ----------
+const map = L.map("map").setView([10.85, 78.65], 7); // Tamil Nadu centre
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: "© OpenStreetMap contributors",
+}).addTo(map);
 
-// Cell types: empty | disaster | danger | blocked | safe
-let grid = [];
-let person = { x: 2, y: 13 };            // start location (bottom-left)
-let safeZones = [
-  { x: 21, y: 2,  name: "Hospital Safe Zone" },
-  { x: 21, y: 13, name: "School Safe Zone" },
-  { x: 11, y: 1,  name: "Open Ground Safe Zone" },
+// ---------- 2. Data ----------
+const TAMIL_NADU_SAFE_ZONES = [
+  { name: "Coimbatore Relief Centre (Nehru Stadium)", lat: 11.0060, lng: 76.9700 },
+  { name: "Chennai Relief Centre (Marina / MCC Ground)", lat: 13.0580, lng: 80.2780 },
+  { name: "Madurai Relief Centre", lat: 9.9252, lng: 78.1198 },
+  { name: "Trichy Relief Centre", lat: 10.7905, lng: 78.7047 },
+  { name: "Salem Relief Centre", lat: 11.6643, lng: 78.1460 },
+  { name: "Thanjavur Relief Centre", lat: 10.7870, lng: 79.1378 },
+  { name: "Tirunelveli Relief Centre", lat: 8.7139, lng: 77.7567 },
+  { name: "Vellore Relief Centre", lat: 12.9165, lng: 79.1325 },
+  { name: "Erode Relief Centre", lat: 11.3410, lng: 77.7172 },
+  { name: "Kanyakumari Relief Centre", lat: 8.0883, lng: 77.5385 },
 ];
+
+let safeZones = [...TAMIL_NADU_SAFE_ZONES];
+let disasters = [];              // { lat, lng, radiusKm, type, layers: [] }
 let currentMode = "disaster";
-let currentPath = [];
-let animationTimer = null;
+let routeLine = null;
 
-const mapEl = document.getElementById("map");
-mapEl.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+// My location — default: Karunya University, Coimbatore
+let personLatLng = L.latLng(10.9367, 76.7447);
 
-// ---------- Build / reset the grid ----------
-function resetGrid() {
-  grid = Array.from({ length: ROWS }, () => Array(COLS).fill("empty"));
-  person = { x: 2, y: 13 };
-  safeZones = [
-    { x: 21, y: 2,  name: "Hospital Safe Zone" },
-    { x: 21, y: 13, name: "School Safe Zone" },
-    { x: 11, y: 1,  name: "Open Ground Safe Zone" },
-  ];
-  currentPath = [];
-  stopAnimation();
-  hideResults();
-  draw();
+const emojiIcon = (emoji, size = 26) =>
+  L.divIcon({ className: "emoji-marker", html: `<div style="font-size:${size}px">${emoji}</div>`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+
+// Person / RescueBot marker (draggable)
+const personMarker = L.marker(personLatLng, { icon: emojiIcon("🤖", 30), draggable: true })
+  .addTo(map).bindPopup("<b>You / RescueBot</b><br>Drag me, or use 'My Location' mode and click the map.");
+personMarker.on("dragend", () => { personLatLng = personMarker.getLatLng(); hideResults(); });
+
+// Safe zone markers
+let safeZoneMarkers = [];
+function drawSafeZones() {
+  safeZoneMarkers.forEach(m => map.removeLayer(m));
+  safeZoneMarkers = safeZones.map(z =>
+    L.marker([z.lat, z.lng], { icon: emojiIcon("🟢", 20) }).addTo(map).bindPopup(`<b>Safe Zone</b><br>${z.name}`)
+  );
 }
+drawSafeZones();
 
-// ---------- Draw the map ----------
-function draw(pathCells = []) {
-  const pathSet = new Set(pathCells.map(p => p.x + "," + p.y));
-  mapEl.innerHTML = "";
-
-  for (let y = 0; y < ROWS; y++) {
-    for (let x = 0; x < COLS; x++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      const type = grid[y][x];
-
-      if (type !== "empty") cell.classList.add(type);
-      if (pathSet.has(x + "," + y)) cell.classList.add("path");
-
-      // Icons
-      const safe = safeZones.find(s => s.x === x && s.y === y);
-      if (safe) { cell.classList.add("safe"); cell.textContent = "🏥"; if (safe.name.includes("School")) cell.textContent = "🏫"; if (safe.name.includes("Ground")) cell.textContent = "🏕️"; }
-      else if (type === "disaster") cell.textContent = disasterIcon();
-      else if (type === "blocked") cell.textContent = "🚧";
-
-      if (person.x === x && person.y === y) { cell.classList.add("person"); cell.textContent = "🤖"; }
-
-      cell.addEventListener("click", () => onCellClick(x, y));
-      mapEl.appendChild(cell);
-    }
-  }
+// ---------- 3. Helper maths ----------
+function haversineKm(a, b) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
 }
-
 function disasterIcon() {
-  const t = document.getElementById("disasterType").value;
-  return { flood: "🌊", fire: "🔥", earthquake: "🏚️", landslide: "⛰️" }[t] || "⚠️";
+  return { flood: "🌊", fire: "🔥", earthquake: "🏚️", landslide: "⛰️", cyclone: "🌀" }[document.getElementById("disasterType").value] || "⚠️";
 }
 
-// ---------- Clicking the map = creating the scenario ----------
-function onCellClick(x, y) {
+// ---------- 4. Clicking the real map = creating the scenario ----------
+map.on("click", (e) => {
   hideResults();
-  currentPath = [];
-  stopAnimation();
-
   if (currentMode === "person") {
-    if (grid[y][x] !== "disaster") person = { x, y };
+    personLatLng = e.latlng;
+    personMarker.setLatLng(e.latlng);
+  } else if (currentMode === "safezone") {
+    const z = { name: "Custom Safe Zone " + (safeZones.length - 9), lat: e.latlng.lat, lng: e.latlng.lng };
+    safeZones.push(z); drawSafeZones();
+  } else {
+    createDisaster(e.latlng.lat, e.latlng.lng);
   }
-  else if (currentMode === "safezone") {
-    if (!safeZones.some(s => s.x === x && s.y === y)) {
-      safeZones.push({ x, y, name: "Safe Zone " + (safeZones.length + 1) });
-    }
-  }
-  else if (currentMode === "block") {
-    grid[y][x] = grid[y][x] === "blocked" ? "empty" : "blocked";
-  }
-  else if (currentMode === "erase") {
-    grid[y][x] = "empty";
-    safeZones = safeZones.filter(s => !(s.x === x && s.y === y));
-    refreshDangerRing();
-  }
-  else { // disaster mode
-    createDisaster(x, y);
-  }
-  draw();
+});
+
+function createDisaster(lat, lng) {
+  const type = document.getElementById("disasterType").value;
+  const radiusKm = parseInt(document.getElementById("disasterSize").value, 10);
+  const layers = [
+    // danger area (bigger, orange, light)
+    L.circle([lat, lng], { radius: radiusKm * 1500, color: "#f59e0b", weight: 1, fillColor: "#f59e0b", fillOpacity: 0.15 }).addTo(map),
+    // disaster zone (red)
+    L.circle([lat, lng], { radius: radiusKm * 1000, color: "#dc2626", weight: 2, fillColor: "#dc2626", fillOpacity: 0.45 }).addTo(map)
+      .bindPopup(`<b>${type.toUpperCase()}</b><br>Disaster zone: ${radiusKm} km radius`),
+    L.marker([lat, lng], { icon: emojiIcon(disasterIcon(), 28) }).addTo(map),
+  ];
+  disasters.push({ lat, lng, radiusKm, type, layers });
+}
+function clearDisasters() {
+  disasters.forEach(d => d.layers.forEach(l => map.removeLayer(l)));
+  disasters = []; hideResults();
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
 }
 
-// Create a disaster: centre cells + a danger ring around them.
-// The robot must avoid BOTH - just like a real unsafe area.
-function createDisaster(cx, cy) {
-  const radius = parseInt(document.getElementById("disasterSize").value, 10);
-
-  for (let y = 0; y < ROWS; y++) {
-    for (let x = 0; x < COLS; x++) {
-      const d = Math.max(Math.abs(x - cx), Math.abs(y - cy)); // square radius
-      if (d <= radius) grid[y][x] = "disaster";
-      else if (d === radius + 1 && grid[y][x] === "empty") grid[y][x] = "danger";
-    }
-  }
-  // Never trap the person / safe zones inside the icon rendering
-  safeZones = safeZones.filter(s => grid[s.y][s.x] !== "disaster");
+// ---------- 5. Real road routing with OSRM ----------
+// Returns { distanceKm, coords: [[lat,lng],...] } or null
+async function osrmRoute(points) {
+  const coords = points.map(p => `${p.lng},${p.lat}`).join(";");
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes.length) return null;
+    const r = data.routes[0];
+    return { distanceKm: r.distance / 1000, coords: r.geometry.coordinates.map(c => [c[1], c[0]]) };
+  } catch { return null; } // no internet / service down
 }
 
-// After erasing, rebuild danger rings around remaining disasters (simple pass)
-function refreshDangerRing() {
-  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (grid[y][x] === "danger") grid[y][x] = "empty";
-  const disasters = [];
-  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (grid[y][x] === "disaster") disasters.push({ x, y });
-  disasters.forEach(({ x, y }) => {
-    [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([dx, dy]) => {
-      const nx = x + dx, ny = y + dy;
-      if (nx >= 0 && ny >= 0 && nx < COLS && ny < ROWS && grid[ny][nx] === "empty") grid[ny][nx] = "danger";
-    });
-  });
+// Does this road route pass through any disaster zone?
+function routeHitsDisaster(coords) {
+  if (!disasters.length) return false;
+  return coords.some(([lat, lng]) =>
+    disasters.some(d => haversineKm({ lat, lng }, d) < d.radiusKm * 1.05)
+  );
 }
 
-/* =========================================================
-   A* PATH FINDING  (the "intelligence" of RescueBot)
-   - Cost 1 for a normal cell, cost 5 for a danger cell
-     (robot prefers to stay far from danger, but can pass
-      through a danger edge if there is no other way)
-   - Disaster and blocked cells are never allowed
-   ========================================================= */
-function isWalkable(x, y) {
-  return x >= 0 && y >= 0 && x < COLS && y < ROWS && grid[y][x] !== "disaster" && grid[y][x] !== "blocked";
+// A point pushed away from the disaster, used as a detour waypoint
+function detourPoint(from, to, disaster) {
+  const mid = { lat: (from.lat + to.lat) / 2, lng: (from.lng + to.lng) / 2 };
+  let vx = mid.lng - disaster.lng, vy = mid.lat - disaster.lat;
+  const len = Math.hypot(vx, vy) || 1; vx /= len; vy /= len;
+  const pushKm = disaster.radiusKm + 4;
+  // 1 degree lat ≈ 111 km, 1 degree lng ≈ 111*cos(lat) km
+  return { lat: disaster.lat + vy * (pushKm / 111), lng: disaster.lng + vx * (pushKm / (111 * Math.cos(disaster.lat * Math.PI / 180))) };
 }
-function stepCost(x, y) { return grid[y][x] === "danger" ? 5 : 1; }
-function heuristic(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
 
-function findPathAStar(start, goal) {
-  const open = [{ ...start, g: 0, f: heuristic(start, goal), parent: null }];
-  const closed = new Map();
-  const key = (x, y) => x + "," + y;
+/* Find the best safe zone:
+   - try nearest safe zones first
+   - prefer a direct road route that avoids the disaster
+   - else try a detour route around the disaster
+   - else (only if forced) use the shortest direct route + warning */
+async function findBestRoute() {
+  const start = { lat: personLatLng.lat, lng: personLatLng.lng };
+  const candidates = [...safeZones]
+    .map(z => ({ zone: z, straightKm: haversineKm(start, z) }))
+    .sort((a, b) => a.straightKm - b.straightKm)
+    .slice(0, 5);
 
-  while (open.length) {
-    open.sort((a, b) => a.f - b.f);
-    const current = open.shift();
-    if (current.x === goal.x && current.y === goal.y) {
-      const path = [];
-      let node = current;
-      while (node) { path.unshift({ x: node.x, y: node.y }); node = node.parent; }
-      return path;
-    }
-    closed.set(key(current.x, current.y), current.g);
+  let fallback = null;
+  for (const { zone } of candidates) {
+    const direct = await osrmRoute([start, zone]);
+    if (!direct) continue;
+    if (!routeHitsDisaster(direct.coords)) return { zone, route: direct, note: "Direct road route — it does not pass through the disaster area." };
+    if (!fallback) fallback = { zone, route: direct, note: "⚠️ Warning: every road route passes near the disaster area. This is the shortest one — travel with caution." };
 
-    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-      const nx = current.x + dx, ny = current.y + dy;
-      if (!isWalkable(nx, ny)) continue;
-      const g = current.g + stepCost(nx, ny);
-      if (closed.has(key(nx, ny)) && closed.get(key(nx, ny)) <= g) continue;
-      const existing = open.find(n => n.x === nx && n.y === ny);
-      if (!existing || g < existing.g) {
-        const node = { x: nx, y: ny, g, f: g + heuristic({ x: nx, y: ny }, goal), parent: current };
-        if (existing) Object.assign(existing, node); else open.push(node);
+    // try going around the disaster that blocks this route
+    const blocker = disasters.find(d => direct.coords.some(([lat, lng]) => haversineKm({ lat, lng }, d) < d.radiusKm * 1.05));
+    if (blocker) {
+      const via = detourPoint(start, zone, blocker);
+      const detour = await osrmRoute([start, via, zone]);
+      if (detour && !routeHitsDisaster(detour.coords)) {
+        return { zone, route: detour, note: "The direct road passed through the disaster, so RescueBot diverted the route around the disaster area." };
       }
     }
   }
-  return null; // no route
-}
-
-// Find the nearest reachable safe zone
-function findNearestSafeZone() {
-  let best = null;
-  for (const zone of safeZones) {
-    const path = findPathAStar(person, zone);
-    if (path && (!best || path.length < best.path.length)) best = { zone, path };
-  }
-  return best;
+  return fallback;
 }
 
 /* =========================================================
-   TRANSPORT RECOMMENDATION  (simple rule-based AI)
-   Inputs : distance, disaster type, people, vehicle available
-   Output : Walk / Bike / Car + reason + time for each option
+   TRANSPORT RECOMMENDATION (rule-based, same logic as v1,
+   now using the REAL road distance)
    ========================================================= */
-function recommendTransport(distanceMeters) {
+function recommendTransport(distanceKm) {
   const type = document.getElementById("disasterType").value;
   const people = parseInt(document.getElementById("peopleCount").value, 10);
   const vehicle = document.getElementById("vehicle").value;
-  const km = distanceMeters / 1000;
-
   const times = {
-    walk: Math.round((km / 5) * 60),    // 5 km/h
-    bike: Math.round((km / 15) * 60),   // 15 km/h
-    car:  Math.round((km / 30) * 60),   // 30 km/h (city)
+    walk: Math.round((distanceKm / 5) * 60),
+    bike: Math.round((distanceKm / 15) * 60),
+    car: Math.round((distanceKm / 30) * 60),
   };
-
   let choice, reason;
-  if (distanceMeters <= 800) {
-    choice = "walk";
-    reason = "The safe zone is very close. Walking is fastest — no time wasted starting a vehicle, and roads near a disaster may be jammed.";
+  if (distanceKm <= 0.8) {
+    choice = "walk"; reason = "The safe zone is very close. Walking is fastest — no time wasted starting a vehicle, and roads near a disaster may be jammed.";
   } else if (people >= 6) {
-    choice = vehicle === "bike" || vehicle === "none" ? "walk" : "car";
-    reason = "You are a large group. A car keeps everyone together and can make repeat trips. If no car is available, walk together in a group.";
-    if (choice === "walk") reason = "You are a large group but no car is available. Walk together in a group and stay on the marked route.";
-  } else if (type === "flood") {
-    choice = vehicle === "none" || vehicle === "bike" ? "walk" : "car";
-    reason = "Flood water is dangerous and can stall a bike/scooter. A car has higher ground clearance. If no car, walk through shallow areas only — do not use a bike in deep water.";
+    choice = (vehicle === "car" || vehicle === "both") ? "car" : "walk";
+    reason = choice === "car" ? "You are a large group. A car keeps everyone together and can make repeat trips." : "You are a large group but no car is available. Walk together in a group and stay on the marked route.";
+  } else if (type === "flood" || type === "cyclone") {
+    choice = (vehicle === "car" || vehicle === "both") ? "car" : "walk";
+    reason = "Flood / cyclone water is dangerous and can stall a bike. A car has higher ground clearance. If no car, walk only through shallow areas — do not use a bike in deep water.";
   } else if (type === "earthquake" || type === "landslide") {
     choice = vehicle === "none" ? "walk" : "bike";
-    reason = "Earthquake / landslide debris blocks wide roads. A bike can pass through narrow gaps where a car cannot, so it escapes faster.";
+    reason = "Debris blocks wide roads after an earthquake / landslide. A bike can pass through narrow gaps where a car cannot, so it escapes faster.";
   } else if (type === "fire") {
-    choice = distanceMeters > 2000 && vehicle !== "none" && vehicle !== "bike" ? "car" : (vehicle === "none" ? "walk" : "bike");
-    reason = "Fire spreads fast, so speed matters most. " + (choice === "car" ? "A car also protects you from smoke and heat." : "A bike is quick and can escape before roads get blocked by smoke / traffic.");
-  } else if (distanceMeters > 2500 && (vehicle === "car" || vehicle === "both")) {
-    choice = "car";
-    reason = "The safe zone is far. A car is the fastest and safest option for this distance.";
+    choice = (vehicle === "car" || vehicle === "both") && distanceKm > 2 ? "car" : (vehicle === "none" ? "walk" : "bike");
+    reason = "Fire spreads fast, so speed matters most. " + (choice === "car" ? "A car also protects you from smoke and heat." : "A bike is quick and can escape before roads are blocked.");
+  } else if (distanceKm > 25 && (vehicle === "car" || vehicle === "both")) {
+    choice = "car"; reason = "The safe zone is far. A car is the fastest and safest option for this distance.";
   } else if (vehicle !== "none") {
-    choice = "bike";
-    reason = "Medium distance. A bike is faster than walking and can move through traffic near the disaster area.";
+    choice = "bike"; reason = "Medium distance. A bike is faster than walking and can move through traffic near the disaster area.";
   } else {
-    choice = "walk";
-    reason = "No vehicle is available, so walking on the marked safe route is the best option.";
+    choice = "walk"; reason = "No vehicle is available, so walking on the marked safe route is the best option.";
   }
-
   const meta = {
-    walk: { icon: "🚶", name: "Walk", minutes: times.walk },
-    bike: { icon: "🏍️", name: "Bike / Scooter", minutes: times.bike },
-    car:  { icon: "🚗", name: "Car", minutes: times.car },
+    walk: { icon: "🚶", name: "Walk" },
+    bike: { icon: "🏍️", name: "Bike / Scooter" },
+    car: { icon: "🚗", name: "Car" },
   };
   return { ...meta[choice], reason, times };
 }
 
-// ---------- Directions from a path (e.g. "Go Right x 4") ----------
-function buildDirections(path) {
-  if (path.length < 2) return ["You are already at the safe zone."];
-  const names = [];
-  let prev = null, count = 0;
-  const label = (dx, dy) => dx === 1 ? "Right ➡" : dx === -1 ? "⬅ Left" : dy === 1 ? "Down ⬇" : "⬆ Up";
-  for (let i = 1; i < path.length; i++) {
-    const d = label(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
-    if (d === prev) count++;
-    else { if (prev) names.push(`Go ${prev} — ${count} step${count > 1 ? "s" : ""}`); prev = d; count = 1; }
-  }
-  if (prev) names.push(`Go ${prev} — ${count} step${count > 1 ? "s" : ""}`);
-  names.push("🏁 You have reached the safe zone.");
-  return names;
-}
-
-// ---------- Animate RescueBot along the route ----------
-function stopAnimation() { if (animationTimer) { clearInterval(animationTimer); animationTimer = null; } }
-function animatePath(path, done) {
-  stopAnimation();
-  const original = { ...person };
-  let i = 0;
-  animationTimer = setInterval(() => {
-    if (i >= path.length) { stopAnimation(); person = original; draw(path); if (done) done(); return; }
-    person = { ...path[i] };
-    draw(path);
-    i++;
-  }, 220);
-}
-
-// ---------- Main button ----------
+// ---------- 6. UI wiring ----------
 function hideResults() {
   document.getElementById("result").classList.add("hidden");
   document.getElementById("noRoute").classList.add("hidden");
 }
+function setStatus(msg) { document.getElementById("status").textContent = msg; }
 
-document.getElementById("findRouteBtn").addEventListener("click", () => {
+document.getElementById("findRouteBtn").addEventListener("click", async () => {
   hideResults();
-  const found = findNearestSafeZone();
+  const btn = document.getElementById("findRouteBtn");
+  btn.disabled = true; setStatus("🤖 RescueBot is checking real road routes to the nearest safe zones...");
+  try {
+    const found = await findBestRoute();
+    if (!found) { document.getElementById("noRoute").classList.remove("hidden"); setStatus(""); return; }
 
-  if (!found) {
-    document.getElementById("noRoute").classList.remove("hidden");
-    draw();
-    return;
-  }
+    if (routeLine) map.removeLayer(routeLine);
+    routeLine = L.polyline(found.route.coords, { color: "#2563eb", weight: 6, opacity: 0.85 }).addTo(map);
+    map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
 
-  currentPath = found.path;
-  const distanceMeters = (found.path.length - 1) * CELL_METERS;
-  const transport = recommendTransport(distanceMeters);
-
-  document.getElementById("resultSafeZone").innerHTML = `<b>Nearest safe zone:</b> ${found.zone.name}`;
-  document.getElementById("resultDistance").innerHTML = `<b>Route distance:</b> ${distanceMeters} m (${(distanceMeters / 1000).toFixed(2)} km) &bull; ${found.path.length - 1} steps`;
-  document.getElementById("transportIcon").textContent = transport.icon;
-  document.getElementById("transportName").textContent = transport.name;
-  document.getElementById("transportReason").textContent = transport.reason;
-  document.getElementById("transportTimes").textContent =
-    `⏱ Walk: ${transport.times.walk} min • Bike: ${transport.times.bike} min • Car: ${transport.times.car} min`;
-  document.getElementById("directions").innerHTML = buildDirections(found.path).map(d => `<li>${d}</li>`).join("");
-  document.getElementById("result").classList.remove("hidden");
-
-  draw(found.path);
-  animatePath(found.path);
+    const t = recommendTransport(found.route.distanceKm);
+    document.getElementById("resultSafeZone").innerHTML = `<b>Nearest safe zone:</b> ${found.zone.name}`;
+    document.getElementById("resultDistance").innerHTML = `<b>Route distance (by road):</b> ${found.route.distanceKm.toFixed(1)} km`;
+    document.getElementById("resultNote").textContent = found.note;
+    document.getElementById("transportIcon").textContent = t.icon;
+    document.getElementById("transportName").textContent = t.name;
+    document.getElementById("transportReason").textContent = t.reason;
+    document.getElementById("transportTimes").textContent = `⏱ Walk: ${t.times.walk} min • Bike: ${t.times.bike} min • Car: ${t.times.car} min`;
+    document.getElementById("result").classList.remove("hidden");
+    setStatus("");
+  } finally { btn.disabled = false; }
 });
 
-// ---------- Toolbar / presets ----------
 document.querySelectorAll(".mode-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    currentMode = btn.dataset.mode;
+    btn.classList.add("active"); currentMode = btn.dataset.mode;
   });
 });
-document.getElementById("clearBtn").addEventListener("click", resetGrid);
+document.getElementById("clearBtn").addEventListener("click", clearDisasters);
 
+// Preset scenarios on the real map
 const presets = {
-  flood:      () => { document.getElementById("disasterType").value = "flood"; createDisaster(10, 8); createDisaster(13, 10); },
-  fire:       () => { document.getElementById("disasterType").value = "fire"; createDisaster(12, 7); },
-  earthquake: () => { document.getElementById("disasterType").value = "earthquake"; createDisaster(9, 6); createDisaster(15, 11); grid[8][6] = "blocked"; grid[9][17] = "blocked"; grid[5][14] = "blocked"; },
+  "chennai-flood": () => { document.getElementById("disasterType").value = "flood"; document.getElementById("disasterSize").value = "10"; personLatLng = L.latLng(13.0, 80.22); personMarker.setLatLng(personLatLng); createDisaster(13.07, 80.29); map.setView([13.05, 80.25], 11); },
+  "nilgiris-landslide": () => { document.getElementById("disasterType").value = "landslide"; document.getElementById("disasterSize").value = "5"; personLatLng = L.latLng(11.35, 76.70); personMarker.setLatLng(personLatLng); createDisaster(11.41, 76.695); map.setView([11.38, 76.72], 11); },
+  "madurai-fire": () => { document.getElementById("disasterType").value = "fire"; document.getElementById("disasterSize").value = "5"; personLatLng = L.latLng(9.96, 78.10); personMarker.setLatLng(personLatLng); createDisaster(9.93, 78.13); map.setView([9.94, 78.12], 12); },
 };
 document.querySelectorAll(".preset-btn[data-preset]").forEach(btn => {
-  btn.addEventListener("click", () => { resetGrid(); presets[btn.dataset.preset](); draw(); });
+  btn.addEventListener("click", () => { clearDisasters(); presets[btn.dataset.preset](); });
 });
 
-// ---------- Start ----------
-resetGrid();
+// Search a place in Tamil Nadu (Nominatim - free OpenStreetMap search)
+async function searchPlace() {
+  const q = document.getElementById("searchInput").value.trim();
+  if (!q) return;
+  setStatus("🔍 Searching for " + q + "...");
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=${encodeURIComponent(q + ", Tamil Nadu, India")}`);
+    const data = await res.json();
+    if (data.length) { map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 12); setStatus("📍 Found: " + data[0].display_name.split(",").slice(0, 3).join(",")); }
+    else setStatus("Place not found. Try another name.");
+  } catch { setStatus("Search failed — check internet connection."); }
+}
+document.getElementById("searchBtn").addEventListener("click", searchPlace);
+document.getElementById("searchInput").addEventListener("keydown", e => { if (e.key === "Enter") searchPlace(); });
