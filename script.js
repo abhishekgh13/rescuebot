@@ -215,18 +215,38 @@ function clearDisasters() {
 }
 
 // ---------- 5. Real road routing with OSRM ----------
-// Returns { distanceKm, coords: [[lat,lng],...] } or null
+// Returns { distanceKm, coords: [[lat,lng],...] } or null.
+// Has a 12-second timeout: if the free routing service is slow or
+// blocked on the user's network, we stop waiting and use the
+// estimated fallback route below instead of showing nothing.
 async function osrmRoute(points) {
   const coords = points.map(p => `${p.lng},${p.lat}`).join(";");
   const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
   try {
-    const res = await fetch(url);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
     const data = await res.json();
     if (data.code !== "Ok" || !data.routes.length) return null;
     const r = data.routes[0];
     return { distanceKm: r.distance / 1000, coords: r.geometry.coordinates.map(c => [c[1], c[0]]) };
-  } catch { return null; } // no internet / service down
+  } catch { return null; } // timeout / no internet / service down
 }
+
+/* ESTIMATED FALLBACK ROUTE - used only if the road routing service
+   cannot be reached, so the user ALWAYS gets a route to safety.
+   It is a straight line, with distance estimated at 1.3x the
+   straight-line distance (roads are never perfectly straight). */
+function straightLineCoords(a, b, steps = 40) {
+  const coords = [];
+  for (let i = 0; i <= steps; i++) coords.push([a.lat + (b.lat - a.lat) * i / steps, a.lng + (b.lng - a.lng) * i / steps]);
+  return coords;
+}
+function fallbackRoute(start, dest) {
+  return { distanceKm: haversineKm(start, dest) * 1.3, coords: straightLineCoords(start, dest), estimated: true };
+}
+function lineHitsCore(a, b) { return routeHitsCore(straightLineCoords(a, b, 60)); }
 
 // Does this road route pass through any disaster CORE (high intensity)?
 // Passing through the low-intensity outer area is allowed.
@@ -247,54 +267,66 @@ function detourPoint(from, to, disaster) {
   return { lat: disaster.lat + vy * (pushKm / 111), lng: disaster.lng + vx * (pushKm / (111 * Math.cos(disaster.lat * Math.PI / 180))) };
 }
 
-/* ROUTE B - Find the best EXTERNAL safe zone (outside the disaster):
-   - try nearest Tamil Nadu safe zones first
-   - prefer a direct road route that avoids the disaster CORE
-   - else try a detour route around the core
-   - else (only if forced) use the shortest direct route + warning */
+/* ROUTE B - Nearest EXTERNAL safe zone (outside all disasters).
+   Works with MULTIPLE disasters at the same time: a route is only
+   accepted if it avoids the high-intensity core of EVERY disaster.
+   Order of trying:
+   1. Direct OSRM road route for the 3 nearest safe zones
+   2. A detour around the blocking disaster's core
+   3. GUARANTEE: if the road service fails entirely, an estimated
+      straight route to the nearest safe zone whose line does not
+      cross any disaster core - so a route is ALWAYS shown. */
 async function findExternalRoute() {
   const start = { lat: personLatLng.lat, lng: personLatLng.lng };
+  const disasterNote = disasters.length > 1 ? ` (avoiding all ${disasters.length} disaster areas on the map)` : "";
   const candidates = [...safeZones]
     .map(z => ({ zone: z, straightKm: haversineKm(start, z) }))
     .sort((a, b) => a.straightKm - b.straightKm)
-    .slice(0, 5);
+    .slice(0, 3);
 
   let fallback = null;
   for (const { zone } of candidates) {
     const direct = await osrmRoute([start, zone]);
-    if (!direct) continue;
-    if (!routeHitsCore(direct.coords)) return { zone, route: direct, note: "Direct road route to safety outside the disaster - it does not pass through the high-intensity core." };
-    if (!fallback) fallback = { zone, route: direct, note: "Warning: every road route passes near the disaster core. This is the shortest one - travel with caution." };
-
+    if (!direct) break; // routing service unreachable - go to the guaranteed fallback below
+    if (!routeHitsCore(direct.coords)) return { zone, route: direct, note: "Nearest safe zone outside the disaster" + disasterNote + " - this road route does not pass through any high-intensity core." };
+    if (!fallback) fallback = { zone, route: direct, note: "Warning: every road route passes near a disaster core. This is the shortest one - travel with caution." };
     const blocker = disasters.find(d => direct.coords.some(([lat, lng]) => haversineKm({ lat, lng }, d) < d.radiusKm * 0.6 * 1.05));
     if (blocker) {
-      const via = detourPoint(start, zone, blocker);
-      const detour = await osrmRoute([start, via, zone]);
-      if (detour && !routeHitsCore(detour.coords)) {
-        return { zone, route: detour, note: "The direct road passed through the disaster core, so this route is diverted around it to the safe zone outside." };
-      }
+      const detour = await osrmRoute([start, detourPoint(start, zone, blocker), zone]);
+      if (detour && !routeHitsCore(detour.coords)) return { zone, route: detour, note: "The direct road passed through a disaster core, so this route is diverted around it" + disasterNote + "." };
     }
   }
-  return fallback;
+  if (fallback) return fallback;
+
+  // Guaranteed fallback: nearest safe zone reachable in a straight line
+  const allByDistance = [...safeZones].sort((a, b) => haversineKm(start, a) - haversineKm(start, b));
+  for (const zone of allByDistance.slice(0, 8)) {
+    if (!lineHitsCore(start, zone)) {
+      return { zone, route: fallbackRoute(start, zone), note: "Road routing service could not be reached, so this is an ESTIMATED straight-line route to the nearest safe zone" + disasterNote + ". Distance is approximate." };
+    }
+  }
+  const nearest = allByDistance[0];
+  return { zone: nearest, route: fallbackRoute(start, nearest), note: "Road routing service could not be reached. ESTIMATED straight-line route to the nearest safe zone - it may pass near a disaster core, proceed with caution." };
 }
 
-/* ROUTE A - Find the route to the INTERNAL SAFE SHELTER, which is inside
-   the disaster area but in its low-intensity outer zone. This is the
-   quick, immediate-safety option when escaping outside takes too long. */
+/* ROUTE A - Internal SAFE SHELTER inside a disaster's low-intensity area.
+   Every disaster on the map gets its OWN shelter; this route goes to
+   the NEAREST shelter, so it also works when there are multiple
+   disasters. Same guarantee: if the road service fails, an estimated
+   straight route to the shelter is shown instead of nothing. */
 async function findShelterRoute() {
   if (!disasters.length) return null;
   const start = { lat: personLatLng.lat, lng: personLatLng.lng };
   const shelters = disasters.map(d => d.shelter).sort((a, b) => haversineKm(start, a) - haversineKm(start, b));
-  for (const shelter of shelters) {
-    const route = await osrmRoute([start, shelter]);
-    if (route) {
-      const crossesCore = routeHitsCore(route.coords);
-      return { zone: shelter, route, note: crossesCore
-        ? "Immediate refuge inside the disaster's low-intensity area. Note: this shortest road passes close to the core - proceed with caution."
-        : "Immediate refuge inside the disaster's low-intensity area - the road stays out of the high-intensity core." };
-    }
+  const shelter = shelters[0];
+  const route = await osrmRoute([start, shelter]);
+  if (route) {
+    const crossesCore = routeHitsCore(route.coords);
+    return { zone: shelter, route, note: (disasters.length > 1 ? `Nearest shelter, out of ${disasters.length} shelters (one inside each disaster). ` : "") + (crossesCore
+      ? "Immediate refuge inside the disaster's low-intensity area. Note: this shortest road passes close to a core - proceed with caution."
+      : "Immediate refuge inside the disaster's low-intensity area - the road stays out of every high-intensity core.") };
   }
-  return null;
+  return { zone: shelter, route: fallbackRoute(start, shelter), note: "Road routing service could not be reached, so this is an ESTIMATED straight-line route to the internal shelter in the low-intensity area." };
 }
 
 /* =========================================================
@@ -382,8 +414,14 @@ document.getElementById("findRouteBtn").addEventListener("click", async () => {
 
     clearRouteLines();
     const group = [];
-    if (routeA) { const lineA = L.polyline(routeA.route.coords, { color: "#0d9488", weight: 6, opacity: 0.9 }).addTo(map).bindPopup("<b>Route A</b> - to the Internal Safe Shelter (inside, low intensity)"); routeLines.push(lineA); group.push(lineA); }
-    if (routeB) { const lineB = L.polyline(routeB.route.coords, { color: "#2563eb", weight: 6, opacity: 0.9 }).addTo(map).bindPopup("<b>Route B</b> - to the external Safe Zone (outside the disaster)"); routeLines.push(lineB); group.push(lineB); }
+    const drawRoute = (found, color, label) => {
+      // white outline first, then the coloured line on top - visible on street AND satellite maps
+      const casing = L.polyline(found.route.coords, { color: "#ffffff", weight: 11, opacity: 0.75 }).addTo(map);
+      const line = L.polyline(found.route.coords, { color, weight: 6, opacity: 0.95, dashArray: found.route.estimated ? "10 8" : null }).addTo(map).bindPopup(label);
+      routeLines.push(casing, line); group.push(line);
+    };
+    if (routeA) drawRoute(routeA, "#0d9488", "<b>Route A</b> - to the Internal Safe Shelter (inside, low intensity)");
+    if (routeB) drawRoute(routeB, "#2563eb", "<b>Route B</b> - to the external Safe Zone (outside the disaster)");
     if (group.length) map.fitBounds(L.featureGroup(group).getBounds(), { padding: [40, 40] });
 
     fillRouteCard("resA", routeA, "Not available - create a disaster on the map first. A shelter is placed inside it automatically, in the low-intensity area.");

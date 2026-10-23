@@ -17,13 +17,13 @@ real roads, cities and places of Tamil Nadu, completely free, no API key,
 no billing. Road routes come from the free **OSRM** routing service.
 Internet is needed to load the map.
 
-> **Fix note (v5):** the plain OpenStreetMap tile server blocks some pages
+> **Fix note (v6):** the plain OpenStreetMap tile server blocks some pages
 > ("403 Access blocked" tiles), so it is **not used at all**. The map now
 > has **four independent tile providers** (Esri Street, OSM Germany,
 > OSM France, Esri Satellite) with **automatic fallback** — if the active
 > provider is blocked on your network, the map switches itself to the
 > next one. The active provider is shown under the map ("Map source: ...")
-> and the header shows "v5 Auto-Fallback Map" so you can confirm you are
+> and the header shows "v6" so you can confirm you are
 > running the latest files. If you still see blocked tiles, you are
 > opening an OLD copy of the project — delete it and download the repo
 > again fresh, then press Ctrl+F5 in the browser.
@@ -85,3 +85,15 @@ warning markers for disasters, green shield markers for safe zones.
 - Path planning on a real road network
 - Rule-based intelligent systems
 - Robot simulation in software
+
+## Routing reliability (v6)
+- Routes are computed against **all disasters on the map at the same
+  time** — a road route is accepted only if it avoids the high-intensity
+  core of every disaster, and every disaster gets its own internal
+  shelter (Route A goes to the nearest shelter).
+- If the free road-routing service (OSRM) is slow or unreachable, it is
+  given 12 seconds and then RescueBot **always** falls back to an
+  estimated straight-line route (shown dashed) to the nearest safe zone
+  whose path does not cross a disaster core — a route is always shown.
+- Route lines are drawn with a white outline so they are clearly
+  visible on both street and satellite maps.
