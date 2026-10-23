@@ -18,10 +18,30 @@
 
 // ---------- 1. Create the real map, centred on Tamil Nadu ----------
 const map = L.map("map").setView([10.85, 78.65], 7); // Tamil Nadu centre
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: "© OpenStreetMap contributors",
-}).addTo(map);
+
+/* Map tiles: Esri World Street Map is the default.
+   WHY NOT the plain OpenStreetMap tile server? It BLOCKS pages that
+   are opened as a local file / do not follow its tile usage policy
+   (you see "403 Access blocked" tiles). Esri's street tiles show
+   the same real Tamil Nadu roads and places, work from a local
+   file and from GitHub Pages, and need no API key.
+   The user can switch map styles with the layer button (top-right
+   of the map): Street / Satellite / OpenStreetMap. */
+const streetMap = L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 19, attribution: "Tiles © Esri — Source: Esri, OpenStreetMap contributors" }
+);
+const satelliteMap = L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 19, attribution: "Tiles © Esri — World Imagery" }
+);
+const osmMap = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19, attribution: "© OpenStreetMap contributors",
+});
+streetMap.addTo(map); // default view
+L.control.layers(
+  { "🗺️ Street (Esri)": streetMap, "🛰️ Satellite": satelliteMap, "OpenStreetMap": osmMap }
+).addTo(map);
 
 // ---------- 2. Data ----------
 const TAMIL_NADU_SAFE_ZONES = [

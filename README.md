@@ -12,9 +12,16 @@ the best transport — walk, bike, or car.
 
 ## Why not Google Maps directly?
 Google Maps needs a paid API key to use inside a website. This project uses
-**Leaflet + OpenStreetMap** instead — the same real roads, cities and places
-of Tamil Nadu, completely free, no API key, no billing. Road routes come
-from the free **OSRM** routing service. Internet is needed to load the map.
+**Leaflet + Esri World Street Map / OpenStreetMap data** instead — the same
+real roads, cities and places of Tamil Nadu, completely free, no API key,
+no billing. Road routes come from the free **OSRM** routing service.
+Internet is needed to load the map.
+
+> **Fix note:** the plain OpenStreetMap tile server blocks pages opened as
+> a local file ("403 Access blocked" tiles). That is why the default map
+> tiles are Esri World Street Map, which works from a local file and from
+> GitHub Pages. A map-style switcher (Street / Satellite / OpenStreetMap)
+> is at the top-right of the map.
 
 ## How it works (Perceive → Decide → Act)
 1. **Perceive** — The user clicks the real map to place a disaster
