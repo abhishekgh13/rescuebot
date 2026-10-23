@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RescueBot — Disaster Rescue Route Finder</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🚨 RescueBot</h1>
+      <p class="tagline">Intelligent Robotics Project — Click the map to create a disaster, RescueBot finds your safest route out.</p>
+    </div>
+    <div class="badge">Website Only &bull; No IoT &bull; Runs on Laptop</div>
+  </header>
+
+  <main>
+    <!-- ============ LEFT : MAP ============ -->
+    <section class="map-section">
+      <div class="map-toolbar">
+        <span class="toolbar-label">Click mode:</span>
+        <button class="mode-btn active" data-mode="disaster">🌋 Create Disaster</button>
+        <button class="mode-btn" data-mode="person">📍 My Location</button>
+        <button class="mode-btn" data-mode="safezone">🟢 Add Safe Zone</button>
+        <button class="mode-btn" data-mode="block">🚧 Block Road</button>
+        <button class="mode-btn" data-mode="erase">🧹 Erase</button>
+      </div>
+
+      <div id="map" class="map-grid" aria-label="City map grid"></div>
+
+      <div class="legend">
+        <span><i class="sw person"></i> You / RescueBot</span>
+        <span><i class="sw disaster"></i> Disaster zone</span>
+        <span><i class="sw danger"></i> Danger ring (avoid)</span>
+        <span><i class="sw safe"></i> Safe zone</span>
+        <span><i class="sw blocked"></i> Blocked road</span>
+        <span><i class="sw path"></i> Escape route</span>
+      </div>
+
+      <div class="preset-row">
+        <span class="toolbar-label">Quick scenarios:</span>
+        <button class="preset-btn" data-preset="flood">🌊 Flood</button>
+        <button class="preset-btn" data-preset="fire">🔥 Fire</button>
+        <button class="preset-btn" data-preset="earthquake">🏚️ Earthquake</button>
+        <button id="clearBtn" class="preset-btn danger-btn">Reset Map</button>
+      </div>
+    </section>
+
+    <!-- ============ RIGHT : CONTROLS + RESULT ============ -->
+    <aside class="panel">
+      <h2>1. Disaster Settings</h2>
+      <label>
+        Disaster type
+        <select id="disasterType">
+          <option value="flood">🌊 Flood</option>
+          <option value="fire">🔥 Fire</option>
+          <option value="earthquake">🏚️ Earthquake</option>
+          <option value="landslide">⛰️ Landslide</option>
+        </select>
+      </label>
+      <label>
+        Disaster size
+        <select id="disasterSize">
+          <option value="1">Small (radius 1)</option>
+          <option value="2" selected>Medium (radius 2)</option>
+          <option value="3">Large (radius 3)</option>
+        </select>
+      </label>
+
+      <h2>2. Your Situation</h2>
+      <label>
+        Number of people
+        <select id="peopleCount">
+          <option value="1">1 person</option>
+          <option value="2">2 people</option>
+          <option value="4" selected>3–5 people (family)</option>
+          <option value="8">6+ people (group)</option>
+        </select>
+      </label>
+      <label>
+        Vehicle available
+        <select id="vehicle">
+          <option value="none">No vehicle</option>
+          <option value="bike">Bike / Scooter</option>
+          <option value="car" selected>Car</option>
+          <option value="both">Bike and Car</option>
+        </select>
+      </label>
+
+      <button id="findRouteBtn" class="find-btn">🤖 Find Safe Route</button>
+
+      <div id="result" class="result hidden">
+        <h2>✅ RescueBot Result</h2>
+        <p id="resultSafeZone"></p>
+        <p id="resultDistance"></p>
+        <div class="transport-box">
+          <div class="transport-title">Recommended transport</div>
+          <div id="transportIcon" class="transport-icon">🚗</div>
+          <div id="transportName" class="transport-name">Car</div>
+          <p id="transportReason"></p>
+          <p id="transportTimes" class="times"></p>
+        </div>
+        <h3>Turn-by-turn directions</h3>
+        <ol id="directions" class="directions"></ol>
+      </div>
+
+      <div id="noRoute" class="result error hidden">
+        <h2>⚠️ No safe route found</h2>
+        <p>All paths to a safe zone are blocked by the disaster. Try a smaller disaster, erase some blocked cells, or add a closer safe zone.</p>
+      </div>
+
+      <div class="how-it-works">
+        <h2>How RescueBot works</h2>
+        <ol>
+          <li><b>Perceive</b> — You mark the disaster on the map by clicking.</li>
+          <li><b>Decide</b> — RescueBot runs the A* path-finding algorithm, avoiding disaster + danger cells.</li>
+          <li><b>Act</b> — It draws the safest route to the nearest safe zone and recommends walk / bike / car.</li>
+        </ol>
+      </div>
+    </aside>
+  </main>
+
+  <footer>RescueBot &bull; Intelligent Robotics (24AI2003) &bull; A* Path Finding + Rule-Based Transport Recommendation</footer>
+  <script src="script.js"></script>
+</body>
+</html>
