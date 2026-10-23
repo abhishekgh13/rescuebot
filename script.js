@@ -19,29 +19,61 @@
 // ---------- 1. Create the real map, centred on Tamil Nadu ----------
 const map = L.map("map").setView([10.85, 78.65], 7); // Tamil Nadu centre
 
-/* Map tiles: Esri World Street Map is the default.
-   WHY NOT the plain OpenStreetMap tile server? It BLOCKS pages that
-   are opened as a local file / do not follow its tile usage policy
-   (you see "403 Access blocked" tiles). Esri's street tiles show
-   the same real Tamil Nadu roads and places, work from a local
-   file and from GitHub Pages, and need no API key.
-   The user can switch map styles with the layer button (top-right
-   of the map): Street / Satellite / OpenStreetMap. */
-const streetMap = L.tileLayer(
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-  { maxZoom: 19, attribution: "Tiles © Esri — Source: Esri, OpenStreetMap contributors" }
-);
-const satelliteMap = L.tileLayer(
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-  { maxZoom: 19, attribution: "Tiles © Esri — World Imagery" }
-);
-const osmMap = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19, attribution: "© OpenStreetMap contributors",
+/* Map tiles with AUTOMATIC FALLBACK.
+   The plain OpenStreetMap tile server (tile.openstreetmap.org) BLOCKS
+   some pages and shows "403 Access blocked" tiles - so it is NOT used
+   here at all. Instead we keep FOUR independent map providers.
+   If the active provider fails to load tiles (blocked / network),
+   the map AUTOMATICALLY switches itself to the next provider.
+   The user can also switch manually with the layer button (top-right). */
+const baseLayers = [
+  { name: "Street — Esri", layer: L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 19, attribution: "Tiles © Esri — Source: Esri, OpenStreetMap contributors" }) },
+  { name: "Street — OSM Germany", layer: L.tileLayer(
+      "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
+      { maxZoom: 18, attribution: "© OpenStreetMap contributors (DE server)" }) },
+  { name: "Street — OSM France", layer: L.tileLayer(
+      "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+      { maxZoom: 19, attribution: "© OpenStreetMap contributors, HOT (FR server)" }) },
+  { name: "Satellite — Esri", layer: L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 19, attribution: "Tiles © Esri — World Imagery" }) },
+];
+let activeBase = 0;
+let tileErrorCount = 0, tileErrorTimer = null;
+
+function activateBase(index, auto = false) {
+  baseLayers.forEach((b, i) => { if (i !== index && map.hasLayer(b.layer)) map.removeLayer(b.layer); });
+  activeBase = index; tileErrorCount = 0;
+  if (!map.hasLayer(baseLayers[index].layer)) baseLayers[index].layer.addTo(map);
+  const statusEl = document.getElementById("status");
+  if (auto && statusEl) statusEl.textContent = "Map provider was blocked, switched automatically to: " + baseLayers[index].name;
+  const srcEl = document.getElementById("mapSource");
+  if (srcEl) srcEl.textContent = "Map source: " + baseLayers[index].name;
+}
+baseLayers.forEach((b, i) => {
+  b.layer.on("tileerror", () => {
+    if (i !== activeBase) return;
+    tileErrorCount++;
+    clearTimeout(tileErrorTimer);
+    tileErrorTimer = setTimeout(() => { tileErrorCount = 0; }, 4000);
+    if (tileErrorCount >= 6) { // this provider is blocked - switch automatically
+      const next = (activeBase + 1) % baseLayers.length;
+      activateBase(next, true);
+    }
+  });
+  b.layer.on("tileload", () => { if (i === activeBase) tileErrorCount = 0; });
 });
-streetMap.addTo(map); // default view
-L.control.layers(
-  { "Street (Esri)": streetMap, "Satellite": satelliteMap, "OpenStreetMap": osmMap }
-).addTo(map);
+const layersControl = {};
+baseLayers.forEach(b => { layersControl[b.name] = b.layer; });
+L.control.layers(layersControl).addTo(map);
+map.on("baselayerchange", (e) => {
+  const idx = baseLayers.findIndex(b => b.layer === e.layer);
+  if (idx >= 0) { activeBase = idx; tileErrorCount = 0; const srcEl = document.getElementById("mapSource"); if (srcEl) srcEl.textContent = "Map source: " + baseLayers[idx].name; }
+});
+// NOTE: the default layer is added at the END of this script (after all
+// functions are defined), so the whole app is ready when tiles start loading.
 
 // ---------- 2. Data ----------
 const TAMIL_NADU_SAFE_ZONES = [
@@ -393,3 +425,6 @@ async function searchPlace() {
 }
 document.getElementById("searchBtn").addEventListener("click", searchPlace);
 document.getElementById("searchInput").addEventListener("keydown", e => { if (e.key === "Enter") searchPlace(); });
+
+// Start the map with the first provider (auto-fallback handles blocks)
+activateBase(0);

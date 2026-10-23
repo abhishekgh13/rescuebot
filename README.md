@@ -17,11 +17,16 @@ real roads, cities and places of Tamil Nadu, completely free, no API key,
 no billing. Road routes come from the free **OSRM** routing service.
 Internet is needed to load the map.
 
-> **Fix note:** the plain OpenStreetMap tile server blocks pages opened as
-> a local file ("403 Access blocked" tiles). That is why the default map
-> tiles are Esri World Street Map, which works from a local file and from
-> GitHub Pages. A map-style switcher (Street / Satellite / OpenStreetMap)
-> is at the top-right of the map.
+> **Fix note (v5):** the plain OpenStreetMap tile server blocks some pages
+> ("403 Access blocked" tiles), so it is **not used at all**. The map now
+> has **four independent tile providers** (Esri Street, OSM Germany,
+> OSM France, Esri Satellite) with **automatic fallback** — if the active
+> provider is blocked on your network, the map switches itself to the
+> next one. The active provider is shown under the map ("Map source: ...")
+> and the header shows "v5 Auto-Fallback Map" so you can confirm you are
+> running the latest files. If you still see blocked tiles, you are
+> opening an OLD copy of the project — delete it and download the repo
+> again fresh, then press Ctrl+F5 in the browser.
 
 ## How it works (Perceive → Decide → Act)
 1. **Perceive** — The user clicks the real map to place a disaster
