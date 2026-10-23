@@ -40,7 +40,7 @@ const osmMap = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 });
 streetMap.addTo(map); // default view
 L.control.layers(
-  { "🗺️ Street (Esri)": streetMap, "🛰️ Satellite": satelliteMap, "OpenStreetMap": osmMap }
+  { "Street (Esri)": streetMap, "Satellite": satelliteMap, "OpenStreetMap": osmMap }
 ).addTo(map);
 
 // ---------- 2. Data ----------
@@ -65,12 +65,25 @@ let routeLine = null;
 // My location — default: Karunya University, Coimbatore
 let personLatLng = L.latLng(10.9367, 76.7447);
 
-const emojiIcon = (emoji, size = 26) =>
-  L.divIcon({ className: "emoji-marker", html: `<div style="font-size:${size}px">${emoji}</div>`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+/* Professional radar-style markers (Font Awesome icons, no emojis).
+   Each marker is a solid pin with expanding radar rings, like an
+   emergency control-room / radar display. Styles are in style.css. */
+function radarIcon(kind, faClass, extraClass = "") {
+  return L.divIcon({
+    className: "custom-marker",
+    html: `<div class="mkr ${kind} ${extraClass}"><span class="radar-ring"></span><span class="radar-ring r2"></span><span class="mkr-core"><i class="fa-solid ${faClass}"></i></span></div>`,
+    iconSize: [40, 40], iconAnchor: [20, 20],
+  });
+}
+const personIcon = () => radarIcon("mkr-person", "fa-robot");
+const safeIcon = () => radarIcon("mkr-safe", "fa-shield-halved");
+function disasterFaClass(type) {
+  return { flood: "fa-water", fire: "fa-fire", earthquake: "fa-house-crack", landslide: "fa-hill-rockslide", cyclone: "fa-hurricane" }[type] || "fa-triangle-exclamation";
+}
 
 // Person / RescueBot marker (draggable)
-const personMarker = L.marker(personLatLng, { icon: emojiIcon("🤖", 30), draggable: true })
-  .addTo(map).bindPopup("<b>You / RescueBot</b><br>Drag me, or use 'My Location' mode and click the map.");
+const personMarker = L.marker(personLatLng, { icon: personIcon(), draggable: true })
+  .addTo(map).bindPopup("<b>Your Location</b><br>Drag this marker, or use 'My Location' mode and click the map.");
 personMarker.on("dragend", () => { personLatLng = personMarker.getLatLng(); hideResults(); });
 
 // Safe zone markers
@@ -78,7 +91,7 @@ let safeZoneMarkers = [];
 function drawSafeZones() {
   safeZoneMarkers.forEach(m => map.removeLayer(m));
   safeZoneMarkers = safeZones.map(z =>
-    L.marker([z.lat, z.lng], { icon: emojiIcon("🟢", 20) }).addTo(map).bindPopup(`<b>Safe Zone</b><br>${z.name}`)
+    L.marker([z.lat, z.lng], { icon: safeIcon() }).addTo(map).bindPopup(`<b>Safe Zone</b><br>${z.name}`)
   );
 }
 drawSafeZones();
@@ -90,9 +103,7 @@ function haversineKm(a, b) {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-function disasterIcon() {
-  return { flood: "🌊", fire: "🔥", earthquake: "🏚️", landslide: "⛰️", cyclone: "🌀" }[document.getElementById("disasterType").value] || "⚠️";
-}
+function currentDisasterType() { return document.getElementById("disasterType").value; }
 
 // ---------- 4. Clicking the real map = creating the scenario ----------
 map.on("click", (e) => {
@@ -117,7 +128,7 @@ function createDisaster(lat, lng) {
     // disaster zone (red)
     L.circle([lat, lng], { radius: radiusKm * 1000, color: "#dc2626", weight: 2, fillColor: "#dc2626", fillOpacity: 0.45 }).addTo(map)
       .bindPopup(`<b>${type.toUpperCase()}</b><br>Disaster zone: ${radiusKm} km radius`),
-    L.marker([lat, lng], { icon: emojiIcon(disasterIcon(), 28) }).addTo(map),
+    L.marker([lat, lng], { icon: radarIcon("mkr-disaster", disasterFaClass(type), type) }).addTo(map),
   ];
   disasters.push({ lat, lng, radiusKm, type, layers });
 }
@@ -176,7 +187,7 @@ async function findBestRoute() {
     const direct = await osrmRoute([start, zone]);
     if (!direct) continue;
     if (!routeHitsDisaster(direct.coords)) return { zone, route: direct, note: "Direct road route — it does not pass through the disaster area." };
-    if (!fallback) fallback = { zone, route: direct, note: "⚠️ Warning: every road route passes near the disaster area. This is the shortest one — travel with caution." };
+    if (!fallback) fallback = { zone, route: direct, note: "Warning: every road route passes near the disaster area. This is the shortest one — travel with caution." };
 
     // try going around the disaster that blocks this route
     const blocker = disasters.find(d => direct.coords.some(([lat, lng]) => haversineKm({ lat, lng }, d) < d.radiusKm * 1.05));
@@ -227,9 +238,9 @@ function recommendTransport(distanceKm) {
     choice = "walk"; reason = "No vehicle is available, so walking on the marked safe route is the best option.";
   }
   const meta = {
-    walk: { icon: "🚶", name: "Walk" },
-    bike: { icon: "🏍️", name: "Bike / Scooter" },
-    car: { icon: "🚗", name: "Car" },
+    walk: { icon: "fa-person-walking", name: "Walk" },
+    bike: { icon: "fa-motorcycle", name: "Bike / Scooter" },
+    car: { icon: "fa-car", name: "Car" },
   };
   return { ...meta[choice], reason, times };
 }
@@ -244,7 +255,7 @@ function setStatus(msg) { document.getElementById("status").textContent = msg; }
 document.getElementById("findRouteBtn").addEventListener("click", async () => {
   hideResults();
   const btn = document.getElementById("findRouteBtn");
-  btn.disabled = true; setStatus("🤖 RescueBot is checking real road routes to the nearest safe zones...");
+  btn.disabled = true; setStatus("Computing real-road routes to the nearest safe zones...");
   try {
     const found = await findBestRoute();
     if (!found) { document.getElementById("noRoute").classList.remove("hidden"); setStatus(""); return; }
@@ -257,10 +268,10 @@ document.getElementById("findRouteBtn").addEventListener("click", async () => {
     document.getElementById("resultSafeZone").innerHTML = `<b>Nearest safe zone:</b> ${found.zone.name}`;
     document.getElementById("resultDistance").innerHTML = `<b>Route distance (by road):</b> ${found.route.distanceKm.toFixed(1)} km`;
     document.getElementById("resultNote").textContent = found.note;
-    document.getElementById("transportIcon").textContent = t.icon;
+    document.getElementById("transportIcon").innerHTML = `<i class="fa-solid ${t.icon}"></i>`;
     document.getElementById("transportName").textContent = t.name;
     document.getElementById("transportReason").textContent = t.reason;
-    document.getElementById("transportTimes").textContent = `⏱ Walk: ${t.times.walk} min • Bike: ${t.times.bike} min • Car: ${t.times.car} min`;
+    document.getElementById("transportTimes").textContent = `Estimated time — Walk: ${t.times.walk} min | Bike: ${t.times.bike} min | Car: ${t.times.car} min`;
     document.getElementById("result").classList.remove("hidden");
     setStatus("");
   } finally { btn.disabled = false; }
@@ -288,11 +299,11 @@ document.querySelectorAll(".preset-btn[data-preset]").forEach(btn => {
 async function searchPlace() {
   const q = document.getElementById("searchInput").value.trim();
   if (!q) return;
-  setStatus("🔍 Searching for " + q + "...");
+  setStatus("Searching for " + q + "...");
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=in&q=${encodeURIComponent(q + ", Tamil Nadu, India")}`);
     const data = await res.json();
-    if (data.length) { map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 12); setStatus("📍 Found: " + data[0].display_name.split(",").slice(0, 3).join(",")); }
+    if (data.length) { map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 12); setStatus("Found: " + data[0].display_name.split(",").slice(0, 3).join(",")); }
     else setStatus("Place not found. Try another name.");
   } catch { setStatus("Search failed — check internet connection."); }
 }

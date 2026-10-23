@@ -3,110 +3,122 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RescueBot — Disaster Rescue Route Finder | Tamil Nadu Real Map</title>
+  <title>RescueBot — Disaster Response &amp; Evacuation Route System | Tamil Nadu</title>
 
-  <!-- Leaflet (real map library, like Google Maps - free, no API key needed) -->
+  <!-- Leaflet (real map library - free, no API key needed) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Font Awesome - professional icon set (no emojis) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
-    <div>
-      <h1>🚨 RescueBot</h1>
-      <p class="tagline">Real Map of Tamil Nadu, India — Click the map to create a disaster, RescueBot finds the real road route to the nearest safe zone.</p>
+    <div class="brand">
+      <div class="brand-mark"><i class="fa-solid fa-tower-broadcast"></i></div>
+      <div>
+        <h1>RESCUEBOT <span>Disaster Response System</span></h1>
+        <p class="tagline">Tamil Nadu, India &mdash; Click the map to register a disaster incident. The system computes the safest real-road evacuation route to the nearest safe zone.</p>
+      </div>
     </div>
-    <div class="badge">Website Only &bull; No IoT &bull; Real Roads</div>
+    <div class="header-badges">
+      <div class="badge"><i class="fa-solid fa-globe"></i> Web Application</div>
+      <div class="badge badge-live"><span class="live-dot"></span> Simulation Live</div>
+    </div>
   </header>
 
   <main>
     <!-- ============ LEFT : REAL MAP ============ -->
     <section class="map-section">
       <div class="map-toolbar">
-        <span class="toolbar-label">Click mode:</span>
-        <button class="mode-btn active" data-mode="disaster">🌋 Create Disaster</button>
-        <button class="mode-btn" data-mode="person">📍 My Location</button>
-        <button class="mode-btn" data-mode="safezone">🟢 Add Safe Zone</button>
+        <span class="toolbar-label">Map Mode</span>
+        <button class="mode-btn active" data-mode="disaster"><i class="fa-solid fa-triangle-exclamation"></i> Register Disaster</button>
+        <button class="mode-btn" data-mode="person"><i class="fa-solid fa-location-dot"></i> My Location</button>
+        <button class="mode-btn" data-mode="safezone"><i class="fa-solid fa-shield-halved"></i> Add Safe Zone</button>
       </div>
 
       <div class="search-row">
-        <input id="searchInput" type="text" placeholder="Search a place in Tamil Nadu — e.g. Madurai, Salem, Ooty..." />
-        <button id="searchBtn">🔍 Search</button>
+        <input id="searchInput" type="text" placeholder="Search a place in Tamil Nadu — e.g. Madurai, Salem, Ooty" />
+        <button id="searchBtn"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
       </div>
 
       <!-- The real map appears inside this box -->
       <div id="map"></div>
 
       <div class="legend">
-        <span>🤖 You / RescueBot</span>
-        <span><i class="sw disaster"></i> Disaster zone</span>
-        <span><i class="sw danger"></i> Danger area</span>
-        <span>🟢 Safe zone</span>
-        <span><i class="sw path"></i> Escape route (real roads)</span>
+        <span><i class="dot dot-person"></i> Your Location</span>
+        <span><i class="dot dot-disaster"></i> Disaster Zone</span>
+        <span><i class="dot dot-danger"></i> Danger Perimeter</span>
+        <span><i class="dot dot-safe"></i> Safe Zone</span>
+        <span><i class="dot dot-path"></i> Evacuation Route</span>
       </div>
 
       <div class="preset-row">
-        <span class="toolbar-label">Quick scenarios:</span>
-        <button class="preset-btn" data-preset="chennai-flood">🌊 Flood in Chennai</button>
-        <button class="preset-btn" data-preset="nilgiris-landslide">⛰️ Landslide in Nilgiris</button>
-        <button class="preset-btn" data-preset="madurai-fire">🔥 Fire near Madurai</button>
-        <button id="clearBtn" class="preset-btn danger-btn">Clear Disasters</button>
+        <span class="toolbar-label">Incident Presets</span>
+        <button class="preset-btn" data-preset="chennai-flood"><i class="fa-solid fa-water"></i> Flood — Chennai</button>
+        <button class="preset-btn" data-preset="nilgiris-landslide"><i class="fa-solid fa-hill-rockslide"></i> Landslide — Nilgiris</button>
+        <button class="preset-btn" data-preset="madurai-fire"><i class="fa-solid fa-fire"></i> Fire — Madurai</button>
+        <button id="clearBtn" class="preset-btn danger-btn"><i class="fa-solid fa-rotate-left"></i> Clear Incidents</button>
       </div>
-      <p class="note">Map: Esri World Street Map + OpenStreetMap data (same real roads / places as Google Maps, but free and no API key needed). Switch Street / Satellite with the layer button at the top-right of the map. Road routes: OSRM. Needs internet to load the map.</p>
+      <p class="note">Basemap: Esri World Street Map / OpenStreetMap data. Road routing: OSRM. Switch Street / Satellite using the layer control at the top-right of the map. Internet connection required.</p>
     </section>
 
-    <!-- ============ RIGHT : CONTROLS + RESULT ============ -->
+    <!-- ============ RIGHT : CONTROL PANEL ============ -->
     <aside class="panel">
-      <h2>1. Disaster Settings</h2>
-      <label>
-        Disaster type
-        <select id="disasterType">
-          <option value="flood">🌊 Flood</option>
-          <option value="fire">🔥 Fire</option>
-          <option value="earthquake">🏚️ Earthquake</option>
-          <option value="landslide">⛰️ Landslide</option>
-          <option value="cyclone">🌀 Cyclone</option>
-        </select>
-      </label>
-      <label>
-        Disaster size (radius on map)
-        <select id="disasterSize">
-          <option value="5">Small — 5 km</option>
-          <option value="10" selected>Medium — 10 km</option>
-          <option value="20">Large — 20 km</option>
-        </select>
-      </label>
+      <div class="panel-section">
+        <h2><span class="step">01</span> Incident Configuration</h2>
+        <label>
+          Disaster type
+          <select id="disasterType">
+            <option value="flood">Flood</option>
+            <option value="fire">Fire</option>
+            <option value="earthquake">Earthquake</option>
+            <option value="landslide">Landslide</option>
+            <option value="cyclone">Cyclone</option>
+          </select>
+        </label>
+        <label>
+          Affected radius
+          <select id="disasterSize">
+            <option value="5">Small — 5 km</option>
+            <option value="10" selected>Medium — 10 km</option>
+            <option value="20">Large — 20 km</option>
+          </select>
+        </label>
+      </div>
 
-      <h2>2. Your Situation</h2>
-      <label>
-        Number of people
-        <select id="peopleCount">
-          <option value="1">1 person</option>
-          <option value="2">2 people</option>
-          <option value="4" selected>3–5 people (family)</option>
-          <option value="8">6+ people (group)</option>
-        </select>
-      </label>
-      <label>
-        Vehicle available
-        <select id="vehicle">
-          <option value="none">No vehicle</option>
-          <option value="bike">Bike / Scooter</option>
-          <option value="car" selected>Car</option>
-          <option value="both">Bike and Car</option>
-        </select>
-      </label>
+      <div class="panel-section">
+        <h2><span class="step">02</span> Evacuee Profile</h2>
+        <label>
+          Number of people
+          <select id="peopleCount">
+            <option value="1">1 person</option>
+            <option value="2">2 people</option>
+            <option value="4" selected>3–5 people (family)</option>
+            <option value="8">6+ people (group)</option>
+          </select>
+        </label>
+        <label>
+          Vehicle available
+          <select id="vehicle">
+            <option value="none">No vehicle</option>
+            <option value="bike">Bike / Scooter</option>
+            <option value="car" selected>Car</option>
+            <option value="both">Bike and Car</option>
+          </select>
+        </label>
+      </div>
 
-      <button id="findRouteBtn" class="find-btn">🤖 Find Safe Route</button>
+      <button id="findRouteBtn" class="find-btn"><i class="fa-solid fa-route"></i> Compute Evacuation Route</button>
       <p id="status" class="status"></p>
 
       <div id="result" class="result hidden">
-        <h2>✅ RescueBot Result</h2>
+        <h2><i class="fa-solid fa-circle-check"></i> Evacuation Plan</h2>
         <p id="resultSafeZone"></p>
         <p id="resultDistance"></p>
-        <p id="resultNote"></p>
+        <p id="resultNote" class="result-note"></p>
         <div class="transport-box">
-          <div class="transport-title">Recommended transport</div>
-          <div id="transportIcon" class="transport-icon">🚗</div>
+          <div class="transport-title">Recommended Transport</div>
+          <div id="transportIcon" class="transport-icon"><i class="fa-solid fa-car"></i></div>
           <div id="transportName" class="transport-name">Car</div>
           <p id="transportReason"></p>
           <p id="transportTimes" class="times"></p>
@@ -114,22 +126,22 @@
       </div>
 
       <div id="noRoute" class="result error hidden">
-        <h2>⚠️ No route found</h2>
-        <p>Could not find a road route to any safe zone. Check your internet (the map routing needs it), move your location, or clear the disaster.</p>
+        <h2><i class="fa-solid fa-triangle-exclamation"></i> No Route Available</h2>
+        <p>No road route could be computed to any safe zone. Verify the internet connection, reposition your location, or clear the incident.</p>
       </div>
 
-      <div class="how-it-works">
-        <h2>How RescueBot works</h2>
+      <div class="panel-section how-it-works">
+        <h2><span class="step">i</span> System Workflow</h2>
         <ol>
-          <li><b>Perceive</b> — You click the real map of Tamil Nadu to create the disaster.</li>
-          <li><b>Decide</b> — RescueBot checks the nearest safe zones and picks a real road route that avoids the disaster area (it goes around it if the direct road passes through).</li>
-          <li><b>Act</b> — The route is drawn on the map and walk / bike / car is recommended.</li>
+          <li><b>Perceive</b> — An incident is registered by clicking the real map.</li>
+          <li><b>Decide</b> — Safe zones are evaluated and a real-road route that avoids the disaster perimeter is selected. If the direct road is blocked, a detour is computed.</li>
+          <li><b>Act</b> — The evacuation route is rendered on the map with a transport recommendation.</li>
         </ol>
       </div>
     </aside>
   </main>
 
-  <footer>RescueBot &bull; Intelligent Robotics (24AI2003) &bull; Real Map: Leaflet + OpenStreetMap &bull; Real Road Routing: OSRM</footer>
+  <footer>RescueBot &bull; Intelligent Robotics (24AI2003) &bull; Leaflet + Esri / OpenStreetMap &bull; Routing: OSRM</footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="script.js"></script>

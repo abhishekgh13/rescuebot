@@ -50,13 +50,19 @@ Internet is needed to load the map.
 
 ## How to demo
 1. The map opens on **Tamil Nadu**. Your location starts at Karunya
-   University, Coimbatore (drag the 🤖 marker to move it)
-2. Click **🌊 Flood in Chennai** preset — or click anywhere on the map
+   University, Coimbatore (drag the blue radar marker to move it)
+2. Click the **Flood — Chennai** preset — or click anywhere on the map
    in "Create Disaster" mode to make your own disaster
 3. Search any place using the search box (e.g. "Madurai")
 4. Select people + vehicle, click **Find Safe Route**
 5. RescueBot draws the real road route to the nearest safe zone and
    recommends walk / bike / car with a reason and travel times
+
+## Design
+Professional emergency-dashboard theme: no emojis anywhere in the
+interface. All markers are radar-style pins (Font Awesome icons with
+expanding radar rings) — blue for your location, red/colour-coded
+warning markers for disasters, green shield markers for safe zones.
 
 ## Files
 - `index.html` — page structure
