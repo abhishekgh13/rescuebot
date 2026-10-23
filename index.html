@@ -21,7 +21,7 @@
       </div>
     </div>
     <div class="header-badges">
-      <div class="badge"><i class="fa-solid fa-globe"></i> Web Application &bull; v6 Auto-Fallback Map + Guaranteed Routes</div>
+      <div class="badge"><i class="fa-solid fa-globe"></i> Web Application &bull; v7 Per-Disaster Routes</div>
       <div class="badge badge-live"><span class="live-dot"></span> Simulation Live</div>
     </div>
   </header>
@@ -140,6 +140,12 @@
           </div>
           <p id="resB_reason" class="result-note"></p>
         </div>
+      </div>
+
+      <div id="disasterRoutes" class="result hidden">
+        <h2><i class="fa-solid fa-route"></i> Route for Every Disaster</h2>
+        <p class="result-note">Each disaster on the map gets its own evacuation route — from that disaster area to <b>its</b> nearest safe zone, in its own colour.</p>
+        <div id="disasterRouteList"></div>
       </div>
 
       <div id="noRoute" class="result error hidden">

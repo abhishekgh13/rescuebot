@@ -97,3 +97,15 @@ warning markers for disasters, green shield markers for safe zones.
   whose path does not cross a disaster core — a route is always shown.
 - Route lines are drawn with a white outline so they are clearly
   visible on both street and satellite maps.
+
+## Per-disaster routes (v7)
+Clicking **Compute Evacuation Route** now produces:
+- **Your routes** — Route A (internal shelter) and Route B (nearest
+  external safe zone) from your location, and
+- **A route for every disaster on the map** — each disaster area gets
+  its own evacuation route, in its own colour, from that disaster to
+  *its* nearest safe zone, listed in the "Route for Every Disaster"
+  panel with distance and transport recommendation. A disaster's own
+  route starts inside its core and exits it; it still avoids every
+  *other* disaster's core.
+The header shows "v7 Per-Disaster Routes".

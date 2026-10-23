@@ -104,6 +104,11 @@ main { display: grid; grid-template-columns: 1fr 350px; gap: 18px; padding: 18px
 .transport-box p { color: #c3cede; font-size: 13px; margin-top: 7px; }
 .transport-box .times { color: var(--accent); font-weight: 700; }
 
+.disaster-route-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 10px; }
+.disaster-route-card .drc-head { font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.disaster-route-card .chip { width: 14px; height: 14px; border-radius: 4px; display: inline-block; flex: none; }
+.disaster-route-card p { font-size: 13px; margin-bottom: 4px; }
+
 .how-it-works { font-size: 13px; color: var(--muted); }
 .how-it-works ol { margin-left: 18px; }
 .how-it-works li { margin-bottom: 6px; line-height: 1.5; }

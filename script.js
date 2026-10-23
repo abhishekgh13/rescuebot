@@ -257,6 +257,16 @@ function routeHitsCore(coords) {
   );
 }
 
+// Same check, but ignoring ONE disaster - used for a disaster's OWN
+// evacuation route: it starts inside its own core and must exit it,
+// so only the OTHER disasters' cores count as blocked.
+function routeHitsCoreExcept(coords, excludeIndex) {
+  return coords.some(([lat, lng]) =>
+    disasters.some((d, i) => i !== excludeIndex && haversineKm({ lat, lng }, d) < d.radiusKm * 0.6 * 1.05)
+  );
+}
+function lineHitsCoreExcept(a, b, excludeIndex) { return routeHitsCoreExcept(straightLineCoords(a, b, 60), excludeIndex); }
+
 // A point pushed away from the disaster, used as a detour waypoint
 function detourPoint(from, to, disaster) {
   const mid = { lat: (from.lat + to.lat) / 2, lng: (from.lng + to.lng) / 2 };
@@ -329,6 +339,54 @@ async function findShelterRoute() {
   return { zone: shelter, route: fallbackRoute(start, shelter), note: "Road routing service could not be reached, so this is an ESTIMATED straight-line route to the internal shelter in the low-intensity area." };
 }
 
+/* Generic route finder: from ANY starting point to ITS nearest
+   external safe zone, avoiding the core of EVERY disaster.
+   Tries real road routes first (2 nearest zones), then detour,
+   then the guaranteed estimated fallback. */
+async function findRouteFrom(start, excludeIndex = -1) {
+  const candidates = [...safeZones]
+    .map(z => ({ zone: z, straightKm: haversineKm(start, z) }))
+    .sort((a, b) => a.straightKm - b.straightKm)
+    .slice(0, 2);
+  for (const { zone } of candidates) {
+    const direct = await osrmRoute([start, zone]);
+    if (!direct) break;
+    if (!routeHitsCoreExcept(direct.coords, excludeIndex)) return { zone, route: direct };
+    const blocker = disasters.find((d, di) => di !== excludeIndex && direct.coords.some(([lat, lng]) => haversineKm({ lat, lng }, d) < d.radiusKm * 0.6 * 1.05));
+    if (blocker) {
+      const detour = await osrmRoute([start, detourPoint(start, zone, blocker), zone]);
+      if (detour && !routeHitsCoreExcept(detour.coords, excludeIndex)) return { zone, route: detour };
+    }
+  }
+  // guaranteed estimated fallback to the nearest zone whose straight line avoids all cores
+  const allByDistance = [...safeZones].sort((a, b) => haversineKm(start, a) - haversineKm(start, b));
+  for (const zone of allByDistance.slice(0, 8)) {
+    if (!lineHitsCoreExcept(start, zone, excludeIndex)) return { zone, route: fallbackRoute(start, zone) };
+  }
+  const nearest = allByDistance[0];
+  return { zone: nearest, route: fallbackRoute(start, nearest) };
+}
+
+/* PER-DISASTER ROUTES (v7): for every disaster on the map, compute
+   its OWN evacuation route - from that disaster area to its nearest
+   safe zone - plus a short route from its centre to its own internal
+   shelter. Each disaster gets its own colour. */
+const DISASTER_ROUTE_COLORS = ["#9333ea", "#db2777", "#ea580c", "#0891b2", "#65a30d", "#4f46e5", "#b45309", "#be185d"];
+async function computeDisasterRoutes(onProgress) {
+  const results = [];
+  for (let i = 0; i < disasters.length; i++) {
+    const d = disasters[i];
+    if (onProgress) onProgress(i + 1, disasters.length);
+    const centre = { lat: d.lat, lng: d.lng };
+    const external = await findRouteFrom(centre, i); // ignore its OWN core - the route starts inside it and exits
+    // centre -> its own shelter (inside its low-intensity area)
+    let shelterRoute = await osrmRoute([centre, d.shelter]);
+    if (!shelterRoute) shelterRoute = fallbackRoute(centre, d.shelter);
+    results.push({ disaster: d, index: i, color: DISASTER_ROUTE_COLORS[i % DISASTER_ROUTE_COLORS.length], external, shelter: { zone: d.shelter, route: shelterRoute } });
+  }
+  return results;
+}
+
 /* =========================================================
    TRANSPORT RECOMMENDATION (rule-based, same logic as v1,
    now using the REAL road distance)
@@ -376,6 +434,7 @@ function recommendTransport(distanceKm) {
 function hideResults() {
   document.getElementById("result").classList.add("hidden");
   document.getElementById("noRoute").classList.add("hidden");
+  document.getElementById("disasterRoutes").classList.add("hidden");
 }
 function setStatus(msg) { document.getElementById("status").textContent = msg; }
 
@@ -427,6 +486,31 @@ document.getElementById("findRouteBtn").addEventListener("click", async () => {
     fillRouteCard("resA", routeA, "Not available - create a disaster on the map first. A shelter is placed inside it automatically, in the low-intensity area.");
     fillRouteCard("resB", routeB, "No external road route could be computed.");
     document.getElementById("result").classList.remove("hidden");
+
+    // ---- v7: a separate route for EVERY disaster on the map ----
+    if (disasters.length) {
+      const dResults = await computeDisasterRoutes((n, total) => setStatus(`Computing route for disaster ${n} of ${total}...`));
+      const listEl = document.getElementById("disasterRouteList");
+      listEl.innerHTML = "";
+      for (const r of dResults) {
+        const casing = L.polyline(r.external.route.coords, { color: "#ffffff", weight: 10, opacity: 0.7 }).addTo(map);
+        const line = L.polyline(r.external.route.coords, { color: r.color, weight: 5, opacity: 0.95, dashArray: r.external.route.estimated ? "10 8" : null }).addTo(map)
+          .bindPopup(`<b>Disaster ${r.index + 1} (${r.disaster.type})</b><br>Evacuation route to ${r.external.zone.name}`);
+        const shelterLine = L.polyline(r.shelter.route.coords, { color: "#0d9488", weight: 4, opacity: 0.9, dashArray: "6 6" }).addTo(map)
+          .bindPopup(`<b>Disaster ${r.index + 1} shelter route</b><br>To its internal shelter (low-intensity area)`);
+        routeLines.push(casing, line, shelterLine); group.push(line);
+        const tr = recommendTransport(r.external.route.distanceKm);
+        const card = document.createElement("div");
+        card.className = "disaster-route-card";
+        card.innerHTML = `<div class="drc-head"><span class="chip" style="background:${r.color}"></span> Disaster ${r.index + 1} — ${r.disaster.type.toUpperCase()} (${r.disaster.radiusKm} km radius)</div>
+          <p><b>Nearest safe zone:</b> ${r.external.zone.name}</p>
+          <p><b>Evacuation route:</b> ${r.external.route.distanceKm.toFixed(1)} km${r.external.route.estimated ? " (estimated)" : " by road"} &bull; <b>Internal shelter:</b> ${r.shelter.route.distanceKm.toFixed(1)} km inside the low-intensity area</p>
+          <p><b>Recommended transport:</b> ${tr.name} — Walk ${tr.times.walk} min | Bike ${tr.times.bike} min | Car ${tr.times.car} min</p>`;
+        listEl.appendChild(card);
+      }
+      document.getElementById("disasterRoutes").classList.remove("hidden");
+      if (group.length) map.fitBounds(L.featureGroup(group).getBounds(), { padding: [40, 40] });
+    }
     setStatus("");
   } finally { btn.disabled = false; }
 });
