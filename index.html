@@ -3,11 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RescueBot — Disaster Response &amp; Evacuation Route System | Tamil Nadu</title>
-
-  <!-- Leaflet (real map library - free, no API key needed) -->
+  <title>RescueBot — Evacuation System for People in Disaster Areas | Tamil Nadu</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- Font Awesome - professional icon set (no emojis) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -16,23 +13,21 @@
     <div class="brand">
       <div class="brand-mark"><i class="fa-solid fa-tower-broadcast"></i></div>
       <div>
-        <h1>RESCUEBOT <span>Disaster Response System</span></h1>
-        <p class="tagline">Tamil Nadu, India &mdash; Click the map to register a disaster incident. The system computes the safest real-road evacuation route to the nearest safe zone.</p>
+        <h1>RESCUEBOT <span>Disaster Evacuation System</span></h1>
+        <p class="tagline">For the people living in the affected area — click anywhere on the Tamil Nadu map to register a disaster there, and RescueBot immediately moves the people of that area to their nearest safe zone.</p>
       </div>
     </div>
     <div class="header-badges">
-      <div class="badge"><i class="fa-solid fa-globe"></i> Web Application &bull; v7 Per-Disaster Routes</div>
+      <div class="badge"><i class="fa-solid fa-globe"></i> Web Application &bull; v8 People Evacuation</div>
       <div class="badge badge-live"><span class="live-dot"></span> Simulation Live</div>
     </div>
   </header>
 
   <main>
-    <!-- ============ LEFT : REAL MAP ============ -->
     <section class="map-section">
       <div class="map-toolbar">
         <span class="toolbar-label">Map Mode</span>
-        <button class="mode-btn active" data-mode="disaster"><i class="fa-solid fa-triangle-exclamation"></i> Register Disaster</button>
-        <button class="mode-btn" data-mode="person"><i class="fa-solid fa-location-dot"></i> My Location</button>
+        <button class="mode-btn active" data-mode="disaster"><i class="fa-solid fa-triangle-exclamation"></i> Register Disaster (people there will be evacuated)</button>
         <button class="mode-btn" data-mode="safezone"><i class="fa-solid fa-shield-halved"></i> Add Safe Zone</button>
       </div>
 
@@ -41,18 +36,15 @@
         <button id="searchBtn"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
       </div>
 
-      <!-- The real map appears inside this box -->
       <div id="map"></div>
 
       <div class="legend">
-        <span><i class="dot dot-person"></i> Your Location</span>
         <span><i class="dot dot-core"></i> Disaster Core (High Intensity)</span>
         <span><i class="dot dot-low"></i> Low Intensity Area</span>
         <span><i class="dot dot-danger"></i> Danger Perimeter</span>
-        <span><i class="dot dot-shelter"></i> Internal Shelter (inside disaster, low intensity)</span>
+        <span><i class="dot dot-shelter"></i> Internal Shelter (inside, low intensity)</span>
         <span><i class="dot dot-safe"></i> Safe Zone (28 across Tamil Nadu)</span>
-        <span><i class="dot dot-route-a"></i> Route A — to Internal Shelter</span>
-        <span><i class="dot dot-route-b"></i> Route B — to External Safe Zone</span>
+        <span><i class="dot dot-people"></i> People being evacuated (moving marker)</span>
       </div>
 
       <div class="preset-row">
@@ -60,17 +52,16 @@
         <button class="preset-btn" data-preset="chennai-flood"><i class="fa-solid fa-water"></i> Flood — Chennai</button>
         <button class="preset-btn" data-preset="nilgiris-landslide"><i class="fa-solid fa-hill-rockslide"></i> Landslide — Nilgiris</button>
         <button class="preset-btn" data-preset="madurai-fire"><i class="fa-solid fa-fire"></i> Fire — Madurai</button>
-        <button id="clearBtn" class="preset-btn danger-btn"><i class="fa-solid fa-rotate-left"></i> Clear Incidents</button>
+        <button id="clearBtn" class="preset-btn danger-btn"><i class="fa-solid fa-rotate-left"></i> Clear All</button>
       </div>
-      <p class="note"><span id="mapSource">Map source: Street — Esri</span> &bull; If a map provider is blocked on your network, RescueBot switches to another provider automatically. You can also switch manually with the layer control at the top-right of the map. Road routing: OSRM. Internet connection required.</p>
+      <p class="note"><span id="mapSource">Map source: Street — Esri</span> &bull; If a map provider is blocked on your network, RescueBot switches automatically. Road routing: OSRM. Internet required.</p>
     </section>
 
-    <!-- ============ RIGHT : CONTROL PANEL ============ -->
     <aside class="panel">
       <div class="panel-section">
         <h2><span class="step">01</span> Incident Configuration</h2>
         <label>
-          Disaster type
+          Disaster type (for the next click on the map)
           <select id="disasterType">
             <option value="flood">Flood</option>
             <option value="fire">Fire</option>
@@ -90,75 +81,42 @@
       </div>
 
       <div class="panel-section">
-        <h2><span class="step">02</span> Evacuee Profile</h2>
+        <h2><span class="step">02</span> People in the Disaster Area</h2>
         <label>
-          Number of people
+          Number of people living there
           <select id="peopleCount">
-            <option value="1">1 person</option>
-            <option value="2">2 people</option>
-            <option value="4" selected>3–5 people (family)</option>
-            <option value="8">6+ people (group)</option>
+            <option value="1">Few people (1–10)</option>
+            <option value="2">A street / small locality</option>
+            <option value="4" selected>A locality / village area</option>
+            <option value="8">A large town area</option>
           </select>
         </label>
         <label>
-          Vehicle available
+          Vehicles available there
           <select id="vehicle">
-            <option value="none">No vehicle</option>
-            <option value="bike">Bike / Scooter</option>
-            <option value="car" selected>Car</option>
-            <option value="both">Bike and Car</option>
+            <option value="none">No vehicles</option>
+            <option value="bike">Bikes / Scooters</option>
+            <option value="car" selected>Cars</option>
+            <option value="both">Bikes and Cars</option>
           </select>
         </label>
       </div>
 
-      <button id="findRouteBtn" class="find-btn"><i class="fa-solid fa-route"></i> Compute Evacuation Route</button>
-      <p id="status" class="status"></p>
-
-      <div id="result" class="result hidden">
-        <h2><i class="fa-solid fa-circle-check"></i> Evacuation Plan — 2 Routes</h2>
-
-        <div class="route-card route-a">
-          <div class="route-card-head"><span class="route-tag tag-a">ROUTE A</span> Inside — Internal Shelter</div>
-          <p id="resA_dest"></p>
-          <p id="resA_dist"></p>
-          <p id="resA_note" class="result-note"></p>
-          <div class="transport-mini">
-            <span id="resA_icon" class="t-icon"><i class="fa-solid fa-car"></i></span>
-            <span><b id="resA_transport"></b><br /><span id="resA_times" class="times"></span></span>
-          </div>
-          <p id="resA_reason" class="result-note"></p>
-        </div>
-
-        <div class="route-card route-b">
-          <div class="route-card-head"><span class="route-tag tag-b">ROUTE B</span> Outside — External Safe Zone</div>
-          <p id="resB_dest"></p>
-          <p id="resB_dist"></p>
-          <p id="resB_note" class="result-note"></p>
-          <div class="transport-mini">
-            <span id="resB_icon" class="t-icon"><i class="fa-solid fa-car"></i></span>
-            <span><b id="resB_transport"></b><br /><span id="resB_times" class="times"></span></span>
-          </div>
-          <p id="resB_reason" class="result-note"></p>
-        </div>
-      </div>
+      <button id="findRouteBtn" class="find-btn"><i class="fa-solid fa-route"></i> Recompute All Evacuation Routes</button>
+      <p id="status" class="status">Click on the map to register a disaster — the people there will be routed to safety automatically.</p>
 
       <div id="disasterRoutes" class="result hidden">
-        <h2><i class="fa-solid fa-route"></i> Route for Every Disaster</h2>
-        <p class="result-note">Each disaster on the map gets its own evacuation route — from that disaster area to <b>its</b> nearest safe zone, in its own colour.</p>
+        <h2><i class="fa-solid fa-people-group"></i> Evacuation of People — by Disaster Area</h2>
+        <p class="result-note">Every disaster area gets its own route, in its own colour: the people there are taken to <b>their</b> nearest safe zone, plus a short route to the shelter inside the low-intensity area.</p>
         <div id="disasterRouteList"></div>
-      </div>
-
-      <div id="noRoute" class="result error hidden">
-        <h2><i class="fa-solid fa-triangle-exclamation"></i> No Route Available</h2>
-        <p>No road route could be computed to any safe zone. Verify the internet connection, reposition your location, or clear the incident.</p>
       </div>
 
       <div class="panel-section how-it-works">
         <h2><span class="step">i</span> System Workflow</h2>
         <ol>
-          <li><b>Perceive</b> — An incident is registered by clicking the real map. A disaster has a high-intensity core and a low-intensity outer area, where an internal shelter is automatically placed.</li>
-          <li><b>Decide</b> — Two routes are computed: <b>Route A</b> to the internal shelter inside the low-intensity area, and <b>Route B</b> to the nearest external safe zone, avoiding the disaster core (with a detour if the direct road is blocked).</li>
-          <li><b>Act</b> — Both routes are rendered on the map, each with its own transport recommendation.</li>
+          <li><b>Perceive</b> — A disaster is registered by clicking the real map. The affected area has a high-intensity core and a low-intensity outer area with an internal shelter.</li>
+          <li><b>Decide</b> — For the people of that area, RescueBot finds their nearest safe zone (from the 28 across Tamil Nadu) and a real-road route that exits their disaster and avoids every other disaster's core.</li>
+          <li><b>Act</b> — The evacuation route is drawn immediately, a moving marker shows the people travelling to the safe zone, and transport (walk / bike / car) is recommended for them.</li>
         </ol>
       </div>
     </aside>

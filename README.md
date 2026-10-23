@@ -109,3 +109,15 @@ Clicking **Compute Evacuation Route** now produces:
   route starts inside its core and exits it; it still avoids every
   *other* disaster's core.
 The header shows "v7 Per-Disaster Routes".
+
+## Purpose clarification (v8) — READ THIS
+RescueBot is **for the people living in the disaster area**, not for
+the app user. There is no "my location" anymore. **Clicking the map
+to register a disaster immediately evacuates the people of that
+area**: a route from that disaster area to its nearest safe zone is
+computed and drawn automatically in that disaster's own colour, a
+moving people-marker travels along the route to the safe zone, and
+the panel shows where those people go, the distance, their internal
+shelter, and their recommended transport. The "Recompute" button
+re-runs every disaster area's route (e.g. after changing the people /
+vehicle settings). Header shows "v8 People Evacuation".

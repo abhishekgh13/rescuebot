@@ -66,6 +66,8 @@ main { display: grid; grid-template-columns: 1fr 350px; gap: 18px; padding: 18px
 .mkr-safe .radar-ring { animation-duration: 3.2s; }
 .mkr-shelter { color: #0d9488; }
 .mkr-shelter .mkr-core { background: #0d9488; border-radius: 8px; width: 34px; height: 34px; font-size: 16px; }
+.mkr-people .mkr-core { width: 34px; height: 34px; font-size: 15px; border-width: 3px; }
+.dot-people { background: #9333ea; box-shadow: 0 0 0 3px rgba(147,51,234,.3); }
 
 /* ---------- Right panel ---------- */
 .panel { display: flex; flex-direction: column; gap: 14px; }
